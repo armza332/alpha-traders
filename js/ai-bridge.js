@@ -57,15 +57,17 @@ const AIBridge = {
   // ── Settings UI helpers (called from buttons in index.html) ──
   async _uiSave() {
     const inp = document.getElementById('s-aikey');
+    const sel = document.getElementById('s-aimodel');
     const st  = document.getElementById('ai-key-status');
     if (!inp) return;
-    const key = inp.value.trim();
+    const key   = inp.value.trim();
+    const model = sel ? sel.value : 'gemini-2.0-flash-lite';
     if (key.length < 10) { if (st) st.innerHTML = '<span style="color:var(--red)">❌ key สั้นเกินไป</span>'; return; }
     if (st) st.innerHTML = '⏳ กำลังบันทึกขึ้นเซิร์ฟเวอร์...';
-    const res = await this.saveKey(key);
+    const res = await this.saveKey(key, model);
     inp.value = '';   // never keep the key in the field/DOM
     if (st) st.innerHTML = res.hasKey
-      ? `<span style="color:var(--green)">✅ เก็บ key ฝั่งเซิร์ฟเวอร์แล้ว (model: ${res.model || 'gemini-2.0-flash'})</span>`
+      ? `<span style="color:var(--green)">✅ เก็บ key + model: ${res.model || model} ฝั่งเซิร์ฟเวอร์แล้ว</span>`
       : `<span style="color:var(--red)">❌ ไม่สำเร็จ: ${res.error || 'ตรวจ Bridge URL + re-deploy Apps Script'}</span>`;
   },
   async _uiTest() {
