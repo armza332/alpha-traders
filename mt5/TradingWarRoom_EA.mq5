@@ -359,6 +359,21 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi) {
    double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
    double entry = isBuy ? ask : bid;
    double slDist = atr * effSLMult;
+
+   // Phase 26: floor the SL distance so the spread + broker min-stop can't
+   // eat it (critical on gold/M1 where ATR is tiny but spread is wide).
+   // R:R is preserved (tpDist scales with slDist) and lot is recomputed
+   // from the widened slDist below, so the risk % stays the same.
+   double pt         = SymbolInfoDouble(sym, SYMBOL_POINT);
+   double spreadDist = ask - bid;
+   double minByStop  = (double)SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL) * pt;
+   double minDist    = MathMax(minByStop, spreadDist * 3.0);   // SL ≥ 3× spread
+   if (slDist < minDist) {
+      PrintFormat("⚠️ %s SL too tight (%.5f, spread %.5f) → widened to %.5f",
+                  sym, slDist, spreadDist, minDist);
+      slDist = minDist;
+   }
+
    double tpDist = slDist * effRR;
    double sl = isBuy ? entry - slDist : entry + slDist;
    double tp = isBuy ? entry + tpDist : entry - tpDist;
