@@ -2382,14 +2382,66 @@ const Company = {
     }
   },
 
-  // ═══ SECRETARY CHAT BRAIN (rule-based Thai/EN Q&A + command exec) ═══
-  askSecretary(text) {
+  // ═══ SECRETARY CHAT BRAIN (Groq AI + rule-based fallback + command exec) ═══
+  async askSecretary(text) {
     if (!text || !text.trim()) return;
-    this.chatLog.push({ role: 'user', text: text.trim() });
-    const reply = this._secretaryRespond(text.trim().toLowerCase());
-    this.chatLog.push({ role: 'sec', text: reply });
+    const q = text.trim();
+    this.chatLog.push({ role: 'user', text: q });
+    this._renderChat();
+    const lower = q.toLowerCase();
+
+    // Commands stay deterministic (they actually execute on the EA)
+    if (this._isSecretaryCommand(lower)) { this._pushSec(this._secretaryRespond(lower)); return; }
+
+    // Natural conversation via Groq (only if a key is on the bridge)
+    if (typeof AIBridge !== 'undefined' && AIBridge.url()) {
+      try {
+        const st = await AIBridge.status();
+        if (st && st.hasKey) {
+          this._pushSec('…');                                   // typing indicator
+          const res = await AIBridge.ask(this._secretaryPrompt(q), this._secretarySystem());
+          if (this.chatLog[this.chatLog.length - 1]?.text === '…') this.chatLog.pop();
+          if (res && res.ok && res.text) { this._pushSec(res.text.trim()); return; }
+        }
+      } catch (e) { /* fall through to rule-based */ }
+    }
+    this._pushSec(this._secretaryRespond(lower));
+  },
+
+  _pushSec(text) {
+    this.chatLog.push({ role: 'sec', text });
     if (this.chatLog.length > 40) this.chatLog = this.chatLog.slice(-40);
     this._renderChat();
+  },
+
+  _isSecretaryCommand(q) {
+    return ['ปิดทุก','ปิดหมด','close all','ปิดออเดอร์','ปิดไม้','หยุดบอท','พักเทรด','pause',
+            'หยุดเทรด','เริ่มเทรด','resume','ทำงานต่อ','ปลดล็อก','autopilot','auto pilot',
+            'ออโต้','อัตโนมัติ','เปิดออโต้'].some(k => q.includes(k));
+  },
+
+  _secretarySystem() {
+    return 'คุณคือ "Janie" เลขาสาวของบริษัทเทรด Forex/Gold ชื่อ Alpha Traders. ' +
+      'พูดไทยสุภาพ เป็นกันเอง กระชับ ลงท้ายด้วย "ค่ะ". ตอบเรื่องสถานะพอร์ต กำไร/ขาดทุน สัญญาณ ' +
+      'และให้กำลังใจ CEO. ใช้เฉพาะตัวเลขจากข้อมูลที่ให้มาเท่านั้น ห้ามแต่งตัวเลขเอง ถ้าไม่มีข้อมูลให้บอกตรงๆ. ตอบสั้น 2-4 ประโยค.';
+  },
+
+  _secretaryPrompt(userText) {
+    const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    const cmd  = (typeof TradingWarRoom !== 'undefined') ? TradingWarRoom.lastCmd : null;
+    const live = (typeof BotBridge !== 'undefined' && BotBridge.liveStats) ? BotBridge.liveStats : { count:0, wins:0, losses:0, totalR:0 };
+    const ctx = {
+      online: bot ? !!bot.online : false,
+      balance: bot ? bot.balance : null, equity: bot ? bot.equity : null,
+      todayPnL: bot ? bot.todayPnL : null, wins: bot ? bot.todayWins : null, losses: bot ? bot.todayLosses : null,
+      openPositions: bot ? (bot.positions || []).length : null, mode: bot ? bot.mode : null,
+      lastSignal: (cmd && (cmd.signal === 'buy' || cmd.signal === 'sell'))
+        ? { sym: cmd.sym, dir: cmd.signal, grade: cmd.gradeInfo?.grade, conf: cmd.conf, entry: cmd.entry } : null,
+      liveTrades: live.count,
+      liveWR: (live.wins + live.losses) > 0 ? Math.round(live.wins / (live.wins + live.losses) * 100) : null,
+      totalR: live.totalR,
+    };
+    return 'ข้อมูลบริษัทล่าสุด (JSON): ' + JSON.stringify(ctx) + '\n\nคำถามจาก CEO: ' + userText;
   },
 
   _secretaryRespond(q) {
