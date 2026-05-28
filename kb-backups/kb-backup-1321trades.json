@@ -1,0 +1,218 @@
+{
+  "agents": {
+    "Gold-SMC": {
+      "all": { "t": 1073, "w": 528, "l": 545, "R": 74.2 },
+      "ranging": { "t": 361, "w": 171, "l": 190, "R": -7.6 },
+      "sym_XAUUSD": { "t": 1073, "w": 528, "l": 545, "R": 74.2 },
+      "trending": { "t": 298, "w": 115, "l": 183, "R": -69.8 },
+      "volatile_trending": { "t": 226, "w": 129, "l": 97, "R": 102.8 },
+      "transitional": { "t": 167, "w": 100, "l": 67, "R": 46.8 },
+      "volatile_ranging": { "t": 21, "w": 13, "l": 8, "R": 2.0 }
+    },
+    "Gold-Elliott": {
+      "all": { "t": 1073, "w": 640, "l": 433, "R": 279.0 },
+      "ranging": { "t": 361, "w": 240, "l": 121, "R": 160.4 },
+      "sym_XAUUSD": { "t": 1073, "w": 640, "l": 433, "R": 279.0 },
+      "trending": { "t": 298, "w": 138, "l": 160, "R": -19.0 },
+      "volatile_trending": { "t": 226, "w": 154, "l": 72, "R": 107.2 },
+      "transitional": { "t": 167, "w": 95, "l": 72, "R": 29.6 },
+      "volatile_ranging": { "t": 21, "w": 13, "l": 8, "R": 0.8 }
+    },
+    "Gold-Fib": {
+      "all": { "t": 1073, "w": 618, "l": 455, "R": -5.0 },
+      "ranging": { "t": 361, "w": 221, "l": 140, "R": 70.8 },
+      "sym_XAUUSD": { "t": 1073, "w": 618, "l": 455, "R": -5.0 },
+      "trending": { "t": 298, "w": 159, "l": 139, "R": -52.6 },
+      "volatile_trending": { "t": 226, "w": 113, "l": 113, "R": -58.8 },
+      "transitional": { "t": 167, "w": 111, "l": 56, "R": 32.8 },
+      "volatile_ranging": { "t": 21, "w": 14, "l": 7, "R": 2.8 }
+    },
+    "Gold-RSI": {
+      "all": { "t": 1073, "w": 610, "l": 463, "R": -54.6 },
+      "ranging": { "t": 361, "w": 251, "l": 110, "R": 88.8 },
+      "sym_XAUUSD": { "t": 1073, "w": 610, "l": 463, "R": -54.6 },
+      "trending": { "t": 298, "w": 159, "l": 139, "R": -40.6 },
+      "volatile_trending": { "t": 226, "w": 85, "l": 141, "R": -126.8 },
+      "transitional": { "t": 167, "w": 99, "l": 68, "R": 8.8 },
+      "volatile_ranging": { "t": 21, "w": 16, "l": 5, "R": 15.2 }
+    },
+    "Gold-MACD": {
+      "all": { "t": 126, "w": 57, "l": 69, "R": -20.4 },
+      "ranging": { "t": 38, "w": 20, "l": 18, "R": 0.2 },
+      "sym_XAUUSD": { "t": 126, "w": 57, "l": 69, "R": -20.4 },
+      "trending": { "t": 37, "w": 12, "l": 25, "R": -18.4 },
+      "volatile_trending": { "t": 35, "w": 14, "l": 21, "R": -7.0 },
+      "transitional": { "t": 13, "w": 10, "l": 3, "R": 7.0 },
+      "volatile_ranging": { "t": 3, "w": 1, "l": 2, "R": -2.2 }
+    },
+    "Gold-Bollinger": {
+      "all": { "t": 1073, "w": 628, "l": 445, "R": -27.0 },
+      "ranging": { "t": 361, "w": 273, "l": 88, "R": 154.4 },
+      "sym_XAUUSD": { "t": 1073, "w": 628, "l": 445, "R": -27.0 },
+      "trending": { "t": 298, "w": 172, "l": 126, "R": -23.0 },
+      "volatile_trending": { "t": 226, "w": 101, "l": 125, "R": -98.4 },
+      "transitional": { "t": 167, "w": 69, "l": 98, "R": -68.0 },
+      "volatile_ranging": { "t": 21, "w": 13, "l": 8, "R": 8.0 }
+    },
+    "Gold-Pattern": {
+      "all": { "t": 1073, "w": 601, "l": 472, "R": -13.8 },
+      "ranging": { "t": 361, "w": 213, "l": 148, "R": 16.4 },
+      "sym_XAUUSD": { "t": 1073, "w": 601, "l": 472, "R": -13.8 },
+      "trending": { "t": 298, "w": 199, "l": 99, "R": 94.6 },
+      "volatile_trending": { "t": 226, "w": 82, "l": 144, "R": -132.8 },
+      "transitional": { "t": 167, "w": 92, "l": 75, "R": 2.0 },
+      "volatile_ranging": { "t": 21, "w": 15, "l": 6, "R": 6.0 }
+    },
+    "Gold-News": {
+      "all": { "t": 1073, "w": 665, "l": 408, "R": 12.2 },
+      "ranging": { "t": 361, "w": 272, "l": 89, "R": 129.6 },
+      "sym_XAUUSD": { "t": 1073, "w": 665, "l": 408, "R": 12.2 },
+      "trending": { "t": 298, "w": 175, "l": 123, "R": -21.8 },
+      "volatile_trending": { "t": 226, "w": 102, "l": 124, "R": -96.4 },
+      "transitional": { "t": 167, "w": 102, "l": 65, "R": -2.0 },
+      "volatile_ranging": { "t": 21, "w": 14, "l": 7, "R": 2.8 }
+    },
+    "AUD-SMC": {
+      "all": { "t": 195, "w": 61, "l": 134, "R": -61.6 },
+      "trending": { "t": 70, "w": 20, "l": 50, "R": -25.2 },
+      "sym_AUDUSD": { "t": 195, "w": 61, "l": 134, "R": -61.6 },
+      "ranging": { "t": 70, "w": 23, "l": 47, "R": -23.4 },
+      "volatile_ranging": { "t": 5, "w": 1, "l": 4, "R": -2.4 },
+      "transitional": { "t": 35, "w": 17, "l": 18, "R": 5.6 },
+      "volatile_trending": { "t": 15, "w": 0, "l": 15, "R": -16.2 }
+    },
+    "AUD-Elliott": {
+      "all": { "t": 195, "w": 99, "l": 96, "R": -7.2 },
+      "trending": { "t": 70, "w": 41, "l": 29, "R": 9.6 },
+      "sym_AUDUSD": { "t": 195, "w": 99, "l": 96, "R": -7.2 },
+      "ranging": { "t": 70, "w": 28, "l": 42, "R": -19.4 },
+      "volatile_ranging": { "t": 5, "w": 3, "l": 2, "R": 0.4 },
+      "transitional": { "t": 35, "w": 15, "l": 20, "R": -8.0 },
+      "volatile_trending": { "t": 15, "w": 12, "l": 3, "R": 10.2 }
+    },
+    "AUD-Fib": {
+      "all": { "t": 195, "w": 137, "l": 58, "R": 55.6 },
+      "trending": { "t": 70, "w": 49, "l": 21, "R": 19.6 },
+      "sym_AUDUSD": { "t": 195, "w": 137, "l": 58, "R": 55.6 },
+      "ranging": { "t": 70, "w": 51, "l": 19, "R": 25.4 },
+      "volatile_ranging": { "t": 5, "w": 4, "l": 1, "R": 2.4 },
+      "transitional": { "t": 35, "w": 23, "l": 12, "R": 4.4 },
+      "volatile_trending": { "t": 15, "w": 10, "l": 5, "R": 3.8 }
+    },
+    "AUD-RSI": {
+      "all": { "t": 195, "w": 140, "l": 55, "R": 60.4 },
+      "trending": { "t": 70, "w": 54, "l": 16, "R": 32.0 },
+      "sym_AUDUSD": { "t": 195, "w": 140, "l": 55, "R": 60.4 },
+      "ranging": { "t": 70, "w": 49, "l": 21, "R": 16.6 },
+      "volatile_ranging": { "t": 5, "w": 4, "l": 1, "R": 2.4 },
+      "transitional": { "t": 35, "w": 22, "l": 13, "R": 3.6 },
+      "volatile_trending": { "t": 15, "w": 11, "l": 4, "R": 5.8 }
+    },
+    "AUD-MACD": {
+      "all": { "t": 70, "w": 35, "l": 35, "R": -1.8 },
+      "trending": { "t": 20, "w": 11, "l": 9, "R": 2.6 },
+      "sym_AUDUSD": { "t": 70, "w": 35, "l": 35, "R": -1.8 },
+      "ranging": { "t": 23, "w": 11, "l": 12, "R": -2.2 },
+      "volatile_ranging": { "t": 4, "w": 3, "l": 1, "R": 1.4 },
+      "transitional": { "t": 17, "w": 9, "l": 8, "R": 0.4 },
+      "volatile_trending": { "t": 6, "w": 1, "l": 5, "R": -4.0 }
+    },
+    "AUD-Bollinger": {
+      "all": { "t": 195, "w": 142, "l": 53, "R": 64.4 },
+      "trending": { "t": 70, "w": 54, "l": 16, "R": 28.4 },
+      "sym_AUDUSD": { "t": 195, "w": 142, "l": 53, "R": 64.4 },
+      "ranging": { "t": 70, "w": 46, "l": 24, "R": 13.0 },
+      "volatile_ranging": { "t": 5, "w": 4, "l": 1, "R": 2.4 },
+      "transitional": { "t": 35, "w": 23, "l": 12, "R": 4.4 },
+      "volatile_trending": { "t": 15, "w": 15, "l": 0, "R": 16.2 }
+    },
+    "AUD-Pattern": {
+      "all": { "t": 195, "w": 130, "l": 65, "R": 51.2 },
+      "trending": { "t": 70, "w": 47, "l": 23, "R": 16.8 },
+      "sym_AUDUSD": { "t": 195, "w": 130, "l": 65, "R": 51.2 },
+      "ranging": { "t": 70, "w": 47, "l": 23, "R": 22.2 },
+      "volatile_ranging": { "t": 5, "w": 4, "l": 1, "R": 2.4 },
+      "transitional": { "t": 35, "w": 22, "l": 13, "R": 6.0 },
+      "volatile_trending": { "t": 15, "w": 10, "l": 5, "R": 3.8 }
+    },
+    "EUR-SMC": {
+      "all": { "t": 53, "w": 26, "l": 27, "R": -0.4 },
+      "ranging": { "t": 24, "w": 13, "l": 11, "R": 2.6 },
+      "sym_EURUSD": { "t": 53, "w": 26, "l": 27, "R": -0.4 },
+      "trending": { "t": 18, "w": 7, "l": 11, "R": -3.4 },
+      "transitional": { "t": 9, "w": 6, "l": 3, "R": 2.4 },
+      "volatile_trending": { "t": 1, "w": 0, "l": 1, "R": -1.0 },
+      "volatile_ranging": { "t": 1, "w": 0, "l": 1, "R": -1.0 }
+    },
+    "EUR-Elliott": {
+      "all": { "t": 53, "w": 33, "l": 20, "R": 11.2 },
+      "ranging": { "t": 24, "w": 14, "l": 10, "R": 3.4 },
+      "sym_EURUSD": { "t": 53, "w": 33, "l": 20, "R": 11.2 },
+      "trending": { "t": 18, "w": 11, "l": 7, "R": 3.4 },
+      "transitional": { "t": 9, "w": 6, "l": 3, "R": 2.4 },
+      "volatile_trending": { "t": 1, "w": 1, "l": 0, "R": 1.0 },
+      "volatile_ranging": { "t": 1, "w": 1, "l": 0, "R": 1.0 }
+    },
+    "EUR-Fib": {
+      "all": { "t": 53, "w": 37, "l": 16, "R": 13.2 },
+      "ranging": { "t": 24, "w": 19, "l": 5, "R": 12.2 },
+      "sym_EURUSD": { "t": 53, "w": 37, "l": 16, "R": 13.2 },
+      "trending": { "t": 18, "w": 10, "l": 8, "R": -2.2 },
+      "transitional": { "t": 9, "w": 6, "l": 3, "R": 1.2 },
+      "volatile_trending": { "t": 1, "w": 1, "l": 0, "R": 1.0 },
+      "volatile_ranging": { "t": 1, "w": 1, "l": 0, "R": 1.0 }
+    },
+    "EUR-RSI": {
+      "all": { "t": 53, "w": 33, "l": 20, "R": 5.2 },
+      "ranging": { "t": 24, "w": 18, "l": 6, "R": 10.2 },
+      "sym_EURUSD": { "t": 53, "w": 33, "l": 20, "R": 5.2 },
+      "trending": { "t": 18, "w": 9, "l": 9, "R": -4.2 },
+      "transitional": { "t": 9, "w": 4, "l": 5, "R": -2.8 },
+      "volatile_trending": { "t": 1, "w": 1, "l": 0, "R": 1.0 },
+      "volatile_ranging": { "t": 1, "w": 1, "l": 0, "R": 1.0 }
+    },
+    "EUR-MACD": {
+      "all": { "t": 53, "w": 25, "l": 28, "R": -6.0 },
+      "ranging": { "t": 24, "w": 11, "l": 13, "R": -2.6 },
+      "sym_EURUSD": { "t": 53, "w": 25, "l": 28, "R": -6.0 },
+      "trending": { "t": 18, "w": 8, "l": 10, "R": -2.6 },
+      "transitional": { "t": 9, "w": 6, "l": 3, "R": 1.2 },
+      "volatile_trending": { "t": 1, "w": 0, "l": 1, "R": -1.0 },
+      "volatile_ranging": { "t": 1, "w": 0, "l": 1, "R": -1.0 }
+    },
+    "EUR-Bollinger": {
+      "all": { "t": 53, "w": 37, "l": 16, "R": 13.2 },
+      "ranging": { "t": 24, "w": 19, "l": 5, "R": 11.0 },
+      "sym_EURUSD": { "t": 53, "w": 37, "l": 16, "R": 13.2 },
+      "trending": { "t": 18, "w": 10, "l": 8, "R": -2.2 },
+      "transitional": { "t": 9, "w": 6, "l": 3, "R": 2.4 },
+      "volatile_trending": { "t": 1, "w": 1, "l": 0, "R": 1.0 },
+      "volatile_ranging": { "t": 1, "w": 1, "l": 0, "R": 1.0 }
+    },
+    "EUR-Pattern": {
+      "all": { "t": 53, "w": 28, "l": 25, "R": -3.6 },
+      "ranging": { "t": 24, "w": 12, "l": 12, "R": -1.8 },
+      "sym_EURUSD": { "t": 53, "w": 28, "l": 25, "R": -3.6 },
+      "trending": { "t": 18, "w": 9, "l": 9, "R": -4.2 },
+      "transitional": { "t": 9, "w": 5, "l": 4, "R": 0.4 },
+      "volatile_trending": { "t": 1, "w": 1, "l": 0, "R": 1.0 },
+      "volatile_ranging": { "t": 1, "w": 1, "l": 0, "R": 1.0 }
+    },
+    "Gold-Pivot": {
+      "all": { "t": 396, "w": 227, "l": 169, "R": -3.2 },
+      "ranging": { "t": 136, "w": 88, "l": 48, "R": 28.0 },
+      "sym_XAUUSD": { "t": 396, "w": 227, "l": 169, "R": -3.2 },
+      "trending": { "t": 116, "w": 67, "l": 49, "R": 4.2 },
+      "volatile_trending": { "t": 72, "w": 35, "l": 37, "R": -22.4 },
+      "transitional": { "t": 61, "w": 33, "l": 28, "R": -7.6 },
+      "volatile_ranging": { "t": 11, "w": 4, "l": 7, "R": -5.4 }
+    }
+  },
+  "meta": {
+    "liveTrades": 0,
+    "backtestTrades": 1321,
+    "created": 1779763632354,
+    "lastUpdate": 1779770458923,
+    "notes": "Backup before Fresh Start with new weighting + divergence + filter (Phase 8). Includes Gold-Pivot 396 trades, all symbols XAU/AUD/EUR. Top performers: Gold-Elliott +279R, AUD-Bollinger +64.4R, AUD-RSI +60.4R, AUD-Fib +55.6R, AUD-Pattern +51.2R."
+  }
+}

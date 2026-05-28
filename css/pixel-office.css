@@ -1,0 +1,87 @@
+/* ══════════════════════════════════════════════════════════════════
+   PIXEL OFFICE — Isometric trading floor (Phase 26)
+   Layers on top of the existing .twr-emp / .twr-bubble / .twr-head
+   classes (defined in extras.js _injectFX). Include AFTER style.css.
+   10 desks: 6 specialists + CEO, Secretary(Janie), GEMINI, Accountant.
+   ══════════════════════════════════════════════════════════════════ */
+.iso-floor{
+  --tile:120px;
+  position:relative;
+  width:100%; max-width:920px; margin:0 auto;
+  aspect-ratio:16/10;
+  background:
+    repeating-linear-gradient(60deg,  #2a1d12 0 2px, transparent 2px 60px),
+    repeating-linear-gradient(-60deg, #2a1d12 0 2px, transparent 2px 60px),
+    radial-gradient(120% 100% at 50% 0%, #1d2b3a 0%, #0c1320 70%);
+  transform:perspective(1100px) rotateX(52deg) rotateZ(-45deg);
+  transform-style:preserve-3d;
+  border-radius:10px;
+  box-shadow:0 40px 80px rgba(0,0,0,.6) inset;
+  image-rendering:pixelated;
+}
+/* a single desk cell, placed on the iso grid via --gx/--gy (grid units) */
+.iso-desk{
+  position:absolute;
+  width:var(--tile); height:var(--tile);
+  left:calc(50% + (var(--gx) - var(--gy)) * var(--tile) * 0.5);
+  top:calc(10% + (var(--gx) + var(--gy)) * var(--tile) * 0.34);
+  transform:translate(-50%,-50%);
+  display:flex; align-items:flex-end; justify-content:center;
+}
+/* the desk surface (counter-rotate so monitors/agents stand upright) */
+.iso-desk .desk-top{
+  position:absolute; inset:18% 8% 22% 8%;
+  background:linear-gradient(#7b4a25,#5a3417);
+  border:2px solid #3a2410;
+  box-shadow:0 6px 0 #2a1810, 0 0 0 2px #1a0f08;
+  transform:rotateZ(45deg) rotateX(-52deg) translateZ(14px);
+}
+/* monitors glow with the agent's live state */
+.iso-desk .monitors{
+  position:absolute; top:8%;
+  width:54%; height:30%;
+  background:#0a0f16; border:2px solid #0f1a26;
+  box-shadow:0 0 10px var(--glow,#1b6);
+  transform:rotateZ(45deg) rotateX(-52deg) translateZ(34px);
+}
+/* the sprite/agent stands up out of the iso plane */
+.iso-desk .twr-emp{
+  position:relative; z-index:6;
+  transform:rotateZ(45deg) rotateX(-52deg) translateZ(40px);
+  transform-origin:bottom center;
+}
+
+/* ── Speech bubble: colour driven by live confidence (set --conf 0–100) ─ */
+.twr-bubble{
+  --c: hsl(calc(var(--conf,0) * 1.2) 85% 55%); /* 0=red → 60=yellow → 120=green */
+  background:var(--c) !important;
+  color:#08110a !important;
+  border:1px solid rgba(0,0,0,.4);
+}
+/* ≥90% = COMBO READY: bubble flips to neon + pulses + shows badge */
+.iso-desk[data-conf-band="combo"] .twr-bubble{
+  background:#00ffae !important;
+  color:#002417 !important;
+  box-shadow:0 0 12px #00ffae, 0 0 24px #00ffae;
+  animation:comboFlash .5s steps(2) infinite;
+}
+.iso-desk[data-conf-band="combo"] .monitors{ --glow:#00ffae; }
+.iso-desk[data-conf-band="combo"]::after{
+  content:'⚡ COMBO ' attr(data-dir);
+  position:absolute; top:-26px; left:50%; transform:translateX(-50%) rotateZ(45deg) rotateX(-52deg);
+  font-size:7px; font-weight:bold; padding:2px 6px; border-radius:4px;
+  background:#00ffae; color:#002417; white-space:nowrap; z-index:9;
+}
+.iso-desk[data-dir="SELL"][data-conf-band="combo"] .twr-bubble{ background:#ff4d6d !important; box-shadow:0 0 12px #ff4d6d,0 0 24px #ff4d6d; }
+.iso-desk[data-dir="SELL"][data-conf-band="combo"]::after{ background:#ff4d6d; color:#2a000a; }
+
+@keyframes comboFlash{ 50%{ filter:brightness(1.6) } }
+
+/* GEMINI's coach desk sits at the head of the floor, slightly elevated */
+.iso-desk.gemini .desk-top{ background:linear-gradient(#2b3a7b,#16204a); border-color:#0c1430; }
+.iso-desk.gemini .monitors{ --glow:#6ad; }
+.iso-desk.gemini::before{
+  content:'🧠 GEMINI · COACH'; position:absolute; top:-30px; left:50%;
+  transform:translateX(-50%) rotateZ(45deg) rotateX(-52deg);
+  font-size:7px; color:#9ec5ff; white-space:nowrap;
+}

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRADING WAR ROOM — AI Agent System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <?!= include('Styles'); ?>
+  <style>
+    /* Pixel art logo grid */
+    .star-pixel { display:inline-block; width:6px; height:6px; background:var(--gold); margin:0 1px; }
+    .logo-row { display:flex; align-items:center; gap:2px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header id="header">
+  <div class="logo-block">
+    <!-- Pixel star logo -->
+    <div style="display:grid;grid-template-columns:repeat(5,8px);gap:1px;width:44px">
+      <div style="background:transparent"></div>
+      <div style="background:transparent"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:transparent"></div>
+      <div style="background:transparent"></div>
+      <div style="background:transparent"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:transparent"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:transparent"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:transparent"></div>
+      <div style="background:transparent"></div>
+      <div style="background:transparent"></div>
+      <div style="background:#ffd700;height:8px"></div>
+      <div style="background:transparent"></div>
+      <div style="background:transparent"></div>
+    </div>
+    <div>
+      <div class="logo-text">TRADING WAR ROOM</div>
+      <div class="logo-sub">AI MULTI-AGENT SYSTEM v2.0 — SMC+EW+FIB+RSI</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:20px;align-items:center">
+    <!-- Price tags in header -->
+    <div id="price-xau" class="price-tag">
+      <span class="sym">XAU/USD</span>
+      <span class="val">4571.00</span>
+    </div>
+    <div id="price-aud" class="price-tag">
+      <span class="sym">AUD/USD</span>
+      <span class="val">0.6452</span>
+    </div>
+    <div id="price-eur" class="price-tag">
+      <span class="sym">EUR/USD</span>
+      <span class="val">1.0853</span>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <button class="hdr-btn" onclick="Modal.open('journal')" title="ประวัติการเทรด">📓 JOURNAL</button>
+    <button class="hdr-btn" onclick="Modal.open('help')" title="วิธีใช้งาน">❓ HELP</button>
+    <button class="hdr-btn" onclick="Modal.open('settings')" title="ตั้งค่า Telegram + Alert">⚙ SETTINGS</button>
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      <span id="live-status">INIT</span>
+    </div>
+    <div id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ═══════════════════ ALERT BANNER ═══════════════════ -->
+<div id="alert-banner" class="alert-banner" style="display:none">
+  <!-- Filled by SignalGrade.renderBanner() -->
+</div>
+
+<!-- ═══════════════════ TICKER BAR ═══════════════════ -->
+<div id="ticker-bar">
+  <div class="ticker-item"><span class="ticker-sym">Loading...</span></div>
+</div>
+
+<!-- ═══════════════════ MAIN GRID ═══════════════════ -->
+<div id="main">
+
+  <!-- ═══════ GOLD TEAM ═══════ -->
+  <div class="team-panel" id="gold-panel">
+    <div class="team-header gold-hdr">
+      <div>
+        <div class="team-name">🥇 GOLD TEAM</div>
+        <div style="font-size:6px;color:var(--gray);margin-top:2px">XAU/USD — Precious Metals Desk</div>
+      </div>
+      <div style="font-size:7px;color:var(--gray)">
+        <span style="color:var(--green)">●</span> SMC
+        <span style="color:var(--blue)">●</span> EW
+        <span style="color:var(--yellow)">●</span> FIB
+        <span style="color:var(--orange)">●</span> RSI
+        <span style="color:var(--purple)">●</span> NEWS
+      </div>
+    </div>
+    <div id="gold-team-body">
+      <!-- Rendered by UI.renderGoldTeam() -->
+      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
+        <div class="pixel-loader"></div> Initializing Gold Team...
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ CURRENCY TEAM ═══════ -->
+  <div class="team-panel" id="currency-panel">
+    <div class="team-header fx-hdr">
+      <div>
+        <div class="team-name fx">💱 CURRENCY TEAM</div>
+        <div style="font-size:6px;color:var(--gray);margin-top:2px">AUD/USD + EUR/USD — FX Desk</div>
+      </div>
+      <div style="font-size:7px;color:var(--gray)">
+        <span style="color:var(--green)">●</span> SMC
+        <span style="color:var(--blue)">●</span> EW
+        <span style="color:var(--yellow)">●</span> FIB
+        <span style="color:var(--orange)">●</span> RSI
+        <span style="color:var(--purple)">●</span> NEWS
+      </div>
+    </div>
+    <div id="currency-team-body">
+      <!-- Rendered by UI.renderCurrencyTeam() -->
+      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
+        <div class="pixel-loader"></div> Initializing Currency Team...
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ COMMANDER PANEL ═══════ -->
+  <div id="commander-panel" class="px-box">
+    <div class="cmd-header">
+      <div>
+        <div class="cmd-title">👑 COMMANDER — GENERAL CONTROL</div>
+        <div style="font-size:6px;color:var(--gray);margin-top:2px">Aggregates all team signals → Final trade recommendation</div>
+      </div>
+      <div style="font-size:7px;color:var(--purple)">ORCHESTRATOR</div>
+    </div>
+    <div id="commander-body">
+      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
+        <div class="pixel-loader"></div> Waiting for team reports...
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ ACTIVITY LOG ═══════ -->
+  <div id="log-panel">
+    <div class="log-header">
+      📡 AGENT COMMS
+      <span style="font-size:6px;color:var(--gray)">— Real-time agent activity feed</span>
+      <span style="margin-left:auto;font-size:6px" class="updating">LIVE</span>
+    </div>
+    <div class="log-body" id="log-body">
+      <!-- Populated by UI.addLog() -->
+    </div>
+  </div>
+
+</div><!-- #main -->
+
+<!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
+<div id="modal-settings" class="modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">⚙ SETTINGS — Telegram &amp; Alerts</div>
+      <button class="modal-close" onclick="Modal.close()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">🤖 Bot Token <span class="hint">(จาก @BotFather)</span></label>
+        <input id="s-token" type="text" class="form-input" placeholder="1234567890:ABCdef..." spellcheck="false">
+      </div>
+      <div class="form-group">
+        <label class="form-label">💬 Chat ID <span class="hint">(ส่ง /start ให้ bot แล้วเช็คที่ @userinfobot)</span></label>
+        <input id="s-chatid" type="text" class="form-input" placeholder="-100... หรือ 123456789" spellcheck="false">
+      </div>
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label">⭐ ส่งเฉพาะ Grade ขั้นต่ำ</label>
+          <select id="s-mingrade" class="form-input">
+            <option value="S+">เฉพาะ S+ (โอกาสดีที่สุดเท่านั้น)</option>
+            <option value="A" selected>A ขึ้นไป (แนะนำ)</option>
+            <option value="B">B ขึ้นไป</option>
+            <option value="C">C ขึ้นไป (ส่งบ่อย)</option>
+          </select>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label">⏱ Cooldown (นาที)</label>
+          <input id="s-cooldown" type="number" class="form-input" min="1" max="60" value="5">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="form-checkbox">
+          <input id="s-on" type="checkbox"> เปิด Telegram notifications
+        </label>
+        <label class="form-checkbox">
+          <input id="s-sound" type="checkbox" checked> เปิดเสียง alert
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">🎯 Trade Mode <span class="hint">(ปรับ TP/SL ตามสไตล์)</span></label>
+        <select id="s-trademode" class="form-input">
+          <option value="scalp">⚡ Scalp — SL/TP สั้น เข้าเร็วออกเร็ว (15-60 นาที)</option>
+          <option value="swing" selected>🌊 Swing — ถือ 4-12 ชั่วโมง (default)</option>
+          <option value="position">🏔 Position — ถือข้ามวัน หา big move</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">🎯 Symbol Filter <span class="hint">(ส่ง Telegram เฉพาะคู่ที่ติ๊ก)</span></label>
+        <div style="display:flex;gap:14px;padding:6px 4px;flex-wrap:wrap">
+          <label class="form-checkbox"><input id="s-enableXAU" type="checkbox" checked> 🥇 XAUUSD</label>
+          <label class="form-checkbox"><input id="s-enableAUD" type="checkbox" checked> 🇦🇺 AUDUSD</label>
+          <label class="form-checkbox"><input id="s-enableEUR" type="checkbox" checked> 🇪🇺 EURUSD</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📈 ADX Gate <span class="hint">(0=ปิด, แนะนำ 20 — ตลาด trend เท่านั้น)</span></label>
+        <input id="s-adxgate" type="number" class="form-input" min="0" max="50" value="20">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">👥 Active Analysts <span class="hint">(เลือก agent ที่จะใช้)</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px">
+          <label class="form-checkbox"><input id="s-en-SMC"       type="checkbox" checked> ⚡ SMC (Structure/OB/FVG)</label>
+          <label class="form-checkbox"><input id="s-en-Elliott"   type="checkbox" checked> 🌊 Elliott Wave</label>
+          <label class="form-checkbox"><input id="s-en-Fib"       type="checkbox" checked> 📐 Fibonacci</label>
+          <label class="form-checkbox"><input id="s-en-RSI"       type="checkbox" checked> 📊 RSI / Value</label>
+          <label class="form-checkbox"><input id="s-en-MACD"      type="checkbox" checked> 📈 MACD (Momentum)</label>
+          <label class="form-checkbox"><input id="s-en-Bollinger" type="checkbox" checked> 🎈 Bollinger Bands</label>
+          <label class="form-checkbox"><input id="s-en-Pivot"     type="checkbox"> 🏛 Pivot Points</label>
+          <label class="form-checkbox"><input id="s-en-Pattern"   type="checkbox" checked> 🕯 Candle Patterns</label>
+          <label class="form-checkbox"><input id="s-en-MTF"       type="checkbox" checked> ⏰ Multi-TF (1h+4h+D)</label>
+          <label class="form-checkbox"><input id="s-en-News"      type="checkbox" checked> 📰 News Intel</label>
+        </div>
+      </div>
+      <div id="s-status" class="form-status"></div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="Modal.testTelegram()">🧪 ทดสอบส่ง</button>
+        <button class="btn btn-primary" onclick="Modal.saveSettings()">💾 บันทึก</button>
+      </div>
+      <div class="px-divider"></div>
+      <div style="font-size:8px;color:var(--gold);margin:10px 0 6px">💹 PRICE FEED (ราคาจริงจากตลาด)</div>
+      <div class="form-group">
+        <label class="form-label">🔑 Twelve Data API Key <span class="hint">(ฟรี 800 req/วัน — signup ที่ twelvedata.com)</span></label>
+        <input id="s-pricekey" type="text" class="form-input" placeholder="abc123def456..." spellcheck="false">
+      </div>
+      <div class="form-row">
+        <label class="form-checkbox flex-1">
+          <input id="s-pricefeed" type="checkbox"> เปิดดึงราคาจริง (Real prices)
+        </label>
+        <div class="form-group flex-1" style="margin:0">
+          <label class="form-label">⏱ Refresh ทุก (วินาที, ≥60)</label>
+          <input id="s-pricerefresh" type="number" class="form-input" min="60" max="600" value="120">
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:6px">
+        <button class="btn btn-secondary" onclick="Modal.testPriceFeed()">🧪 ทดสอบดึงราคา</button>
+      </div>
+
+      <div class="help-box">
+        <div style="font-size:7px;color:var(--gold);margin-bottom:4px">📘 วิธีตั้ง Telegram Bot:</div>
+        <ol style="font-size:6px;color:var(--white);line-height:1.8;padding-left:14px">
+          <li>เปิด Telegram → search <b>@BotFather</b> → ส่ง <code>/newbot</code></li>
+          <li>ตั้งชื่อ + username → ได้ <b>Bot Token</b> (1234:ABC...) มาวางช่องบน</li>
+          <li>Search bot ของคุณ → กด <code>/start</code> ส่งให้มัน</li>
+          <li>Search <b>@userinfobot</b> → กด <code>/start</code> → จะได้ <b>Chat ID</b></li>
+          <li>กรอก Chat ID → ติ๊ก "เปิด Telegram" → กด ทดสอบส่ง</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ JOURNAL MODAL ═══════════════════ -->
+<div id="modal-journal" class="modal" style="display:none">
+  <div class="modal-box modal-xl">
+    <div class="modal-header">
+      <div class="modal-title">📓 TRADE JOURNAL — ประวัติสัญญาณ + ผลลัพธ์</div>
+      <button class="modal-close" onclick="Modal.close()">✕</button>
+    </div>
+    <div class="modal-body" id="journal-body">
+      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ HELP MODAL ═══════════════════ -->
+<div id="modal-help" class="modal" style="display:none">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">❓ HELP — วิธีอ่านหน้าเว็บนี้</div>
+      <button class="modal-close" onclick="Modal.close()">✕</button>
+    </div>
+    <div class="modal-body help-content">
+
+      <div class="help-section">
+        <div class="help-title">🚨 ALERT BANNER (แถบสีเขียว/แดง ด้านบน)</div>
+        <div class="help-text">จะ <b>โผล่อัตโนมัติ</b> เมื่อมีสัญญาณ Grade A หรือ S+ พร้อมเสียง alert ถ้าแถบนี้ขึ้น = <b>โอกาสน่าเข้า</b>! แสดง Entry/SL/TP ครบ</div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">🏆 GRADE BADGE (เกรดสัญญาณ)</div>
+        <div class="help-row"><span class="badge-demo" style="color:#ff00ff;border-color:#ff00ff">S+</span> 88–100 — สัญญาณดีที่สุด ทุกทีมเห็นตรงกัน + confidence สูงมาก</div>
+        <div class="help-row"><span class="badge-demo" style="color:#00ff41;border-color:#00ff41">A</span> 80–87 — สัญญาณแข็งแรง พร้อมเข้า</div>
+        <div class="help-row"><span class="badge-demo" style="color:#ffe600;border-color:#ffe600">B</span> 65–79 — ดี แต่รอ confirm เพิ่ม</div>
+        <div class="help-row"><span class="badge-demo" style="color:#ff8c00;border-color:#ff8c00">C</span> 50–64 — กลางๆ ไม่แนะนำ</div>
+        <div class="help-row"><span class="badge-demo" style="color:#555;border-color:#555">D</span> &lt;50 — อย่าเทรด</div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">🥇 GOLD TEAM / 💱 CURRENCY TEAM</div>
+        <div class="help-text">แต่ละทีมมี Head Agent (หัวหน้า) + 4 Analysts + News Agent</div>
+        <ul class="help-list">
+          <li><b>⚡ SMC Analyst</b> — วิเคราะห์ Structure/BOS/Order Block/FVG (Fair Value Gap)</li>
+          <li><b>🌊 Elliott Wave</b> — นับคลื่น Wave 1–5 + Correction (Wave 3 ดีที่สุด)</li>
+          <li><b>📐 Fibonacci</b> — หา Golden Zone (0.618), TP/SL จาก fib extension</li>
+          <li><b>📊 RSI/Value</b> — RSI, ADX (ความแรง trend), Divergence, Volume Profile (POC/VAH/VAL)</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">📰 NEWS AGENT — วิธีอ่าน</div>
+        <div class="help-row"><span class="impact impact-high"></span> <b>แดง</b> = High impact (NFP, CPI, Rate decision) — เลี่ยงเทรด 30 นาทีก่อน/หลัง</div>
+        <div class="help-row"><span class="impact impact-med"></span> <b>เหลือง</b> = Medium impact (PMI, Retail Sales)</div>
+        <div class="help-row"><span class="impact impact-low"></span> <b>เขียว</b> = Low impact (Speeches, minor data)</div>
+        <div class="help-text">▲ = ข่าวสนับสนุน Bull / ▼ = สนับสนุน Bear / ● = Neutral</div>
+        <div class="help-text" style="color:var(--yellow);margin-top:4px">⚠️ ถ้าเห็น <b>"Event within 1h!"</b> = ห้ามเข้า order! รอข่าวออกก่อน</div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">👑 COMMANDER PANEL</div>
+        <ul class="help-list">
+          <li><b>FINAL SIGNAL</b> — ▲ BUY / ▼ SELL / ⏸ WAIT พร้อม pair ที่ดีที่สุด</li>
+          <li><b>Entry</b> — ราคาเข้า, <b>SL</b> — Stop Loss, <b>TP1/TP2</b> — Take Profit</li>
+          <li><b>R:R</b> — Risk:Reward ratio (ยิ่ง R:R สูง ยิ่งคุ้ม)</li>
+          <li><b>Position</b> — แนะนำ % ของ balance ที่ควรเสี่ยง</li>
+          <li><b>Analyst Votes</b> — ▲ = agent โหวต buy / ▼ = sell / — = neutral</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">🎯 Workflow แนะนำ</div>
+        <ol class="help-list">
+          <li>เปิดหน้าเว็บทิ้งไว้ background</li>
+          <li>รอ <b>Alert Banner</b> โผล่ + เสียง alert</li>
+          <li>เช็ค <b>Grade</b> ต้อง A ขึ้นไป</li>
+          <li>ดู <b>Commander Panel</b> หา Entry/SL/TP</li>
+          <li>เช็ค <b>News Agent</b> ไม่มี event ใน 1h</li>
+          <li>วาง order ตาม risk management ของตัวเอง</li>
+        </ol>
+      </div>
+
+      <div class="help-section" style="border-color:var(--red)">
+        <div class="help-title" style="color:var(--red)">⚠️ DISCLAIMER</div>
+        <div class="help-text">ระบบนี้เป็น <b>AI analysis tool</b> — ใช้ประกอบการตัดสินใจ ไม่ใช่ financial advice. ตลาดมีความเสี่ยง คุณต้องจัดการ risk ของตัวเอง ทดสอบใน demo account ก่อน</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ FOOTER NOTE ═══════════════════ -->
+<div style="text-align:center;font-size:6px;color:var(--gray);padding:10px;border-top:1px solid var(--border)">
+  ⚠️ For educational &amp; research purposes only. Not financial advice. Always manage your own risk. |
+  Agents: SMC • Elliott Wave • Fibonacci • RSI/Value • News | Teams: Gold (XAUUSD) • Currency (AUDUSD, EURUSD)
+</div>
+
+<!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+<?!= include('Market'); ?>
+<?!= include('Agents'); ?>
+<?!= include('Ui'); ?>
+<?!= include('Extras'); ?>
+<?!= include('App'); ?>
+
+</body>
+</html>
