@@ -78,6 +78,17 @@ function doPost(e) {
       return json({ ok: true, msg: 'Command queued', id: newId });
     }
 
+    // ── Phase 26: store / clear Google Gemini API key (server-side only) ──
+    if (data.type === 'set_ai_key') {
+      if (data.clear) { props.deleteProperty('GEMINI_KEY'); return json({ ok: true, msg: 'AI key cleared' }); }
+      if (typeof data.key === 'string' && data.key.length > 10) {
+        props.setProperty('GEMINI_KEY', data.key);
+        if (data.model) props.setProperty('GEMINI_MODEL', data.model);
+        return json({ ok: true, msg: 'AI key stored' });
+      }
+      return json({ ok: false, error: 'bad key' });
+    }
+
     // ── EA → status push ──
     data.receivedAt = Date.now();
     props.setProperty('LATEST_STATUS', JSON.stringify(data));
@@ -165,6 +176,38 @@ function doGet(e) {
     const since = parseInt(e.parameter.since || '0', 10);
     const filtered = since > 0 ? trades.filter(t => t.closeTime > since) : trades;
     return json({ ok: true, trades: filtered, total: trades.length });
+  }
+
+  // ── Phase 26: AI key status — never returns the key itself ──
+  if (action === 'ai_status') {
+    return json({ ok: true, hasKey: !!props.getProperty('GEMINI_KEY'),
+                  model: props.getProperty('GEMINI_MODEL') || 'gemini-2.0-flash' });
+  }
+
+  // ── Phase 26: AI proxy → Google Gemini (key stays server-side) ──
+  if (action === 'ai') {
+    if (e.parameter.secret !== SECRET) return json({ ok: false, error: 'Invalid secret' });
+    const key = props.getProperty('GEMINI_KEY');
+    if (!key) return json({ ok: false, error: 'No AI key set — บันทึก key ใน Settings ก่อน' });
+    const model  = props.getProperty('GEMINI_MODEL') || 'gemini-2.0-flash';
+    const prompt = e.parameter.prompt || '';
+    const system = e.parameter.system || '';
+    if (!prompt) return json({ ok: false, error: 'empty prompt' });
+    try {
+      const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+      if (system) body.systemInstruction = { parts: [{ text: system }] };
+      const resp = UrlFetchApp.fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
+        { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true }
+      );
+      const out  = JSON.parse(resp.getContentText());
+      const text = out && out.candidates && out.candidates[0] && out.candidates[0].content &&
+                   out.candidates[0].content.parts && out.candidates[0].content.parts[0].text;
+      if (!text) return json({ ok: false, error: (out.error && out.error.message) || 'no text from model' });
+      return json({ ok: true, text: text, model: model });
+    } catch (err) {
+      return json({ ok: false, error: err.toString() });
+    }
   }
 
   if (action === 'clear') {

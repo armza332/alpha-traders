@@ -395,6 +395,23 @@
         4. Copy URL ลงทั้ง EA Input และช่องนี้
       </div>
 
+      <!-- ═══════ Phase 26: GEMINI AI (Google Gemini key, server-side) ═══════ -->
+      <div style="font-size:8px;color:var(--teal);margin:10px 0 6px">🧠 GEMINI AI BRAIN (Google Gemini — ฝ่ายกลยุทธ์ + เลขา)</div>
+      <div class="form-group">
+        <label class="form-label">🔑 Gemini API Key <span class="hint">(เก็บฝั่งเซิร์ฟเวอร์ ไม่อยู่ในเบราว์เซอร์)</span></label>
+        <input id="s-aikey" type="password" class="form-input" placeholder="วาง Gemini API key แล้วกดบันทึก" spellcheck="false" autocomplete="off">
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <button class="btn btn-primary" style="border-color:var(--teal);color:var(--teal);font-size:8px" onclick="AIBridge._uiSave()">💾 บันทึกขึ้นเซิร์ฟเวอร์</button>
+          <button class="btn btn-secondary" style="font-size:8px" onclick="AIBridge._uiTest()">🧪 ทดสอบ</button>
+          <button class="btn btn-secondary" style="font-size:8px" onclick="AIBridge._uiStatus()">🔄 เช็คสถานะ</button>
+        </div>
+        <div id="ai-key-status" style="font-size:7px;margin-top:6px;color:var(--gray)">⚪ กดเช็คสถานะเพื่อดูว่ามี key หรือยัง</div>
+      </div>
+      <div style="font-size:6px;color:var(--gray);line-height:1.6;padding:0 4px 8px">
+        <b style="color:var(--teal)">📘 หา key:</b> <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--teal)">aistudio.google.com/app/apikey</a> → Create API key (มี free tier)<br>
+        ⚠️ ต้อง <b>re-deploy Apps Script เป็นเวอร์ชันใหม่</b> หลังอัปเดต BridgeCode.gs ปุ่มนี้ถึงทำงาน
+      </div>
+
       <!-- Phase 13: Web AI → EA signal pipeline -->
       <div class="form-row" style="padding:6px;border:1px solid var(--purple);background:rgba(120,80,255,0.08);margin-top:6px">
         <label class="form-checkbox flex-1" style="font-size:7px">
@@ -582,15 +599,16 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=26"></script>
-<script src="js/market.js?v=26"></script>
-<script src="js/agents.js?v=26"></script>
-<script src="js/ui.js?v=26"></script>
-<script src="js/extras.js?v=26"></script>
-<script src="js/gemini.js?v=26"></script>
-<script src="js/portfolio.js?v=26"></script>
-<script src="js/backtest.js?v=26"></script>
-<script src="js/app.js?v=26"></script>
+<script src="js/i18n.js?v=27"></script>
+<script src="js/market.js?v=27"></script>
+<script src="js/agents.js?v=27"></script>
+<script src="js/ui.js?v=27"></script>
+<script src="js/extras.js?v=27"></script>
+<script src="js/ai-bridge.js?v=27"></script>
+<script src="js/gemini.js?v=27"></script>
+<script src="js/portfolio.js?v=27"></script>
+<script src="js/backtest.js?v=27"></script>
+<script src="js/app.js?v=27"></script>
 
 </body>
 </html>

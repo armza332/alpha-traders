@@ -8,7 +8,7 @@
 //    1. Re-assigning each employee's COMBO to the best one for the regime
 //    2. Tuning a per-employee CONFIDENCE WEIGHT (coach bias)
 //    3. Re-authoring each employee's persona "system prompt" (rule-based,
-//       or via a real Claude call if GEMINI_API_KEY is wired)
+//       or via a real Google Gemini call through AIBridge if a key is set)
 //    4. Adjusting firm-wide guards (minGrade / risk) by weekly win-rate
 //
 //  It only uses PUBLIC surfaces already in the codebase:
@@ -133,8 +133,9 @@ const Gemini = {
     if (!silent && typeof UI !== 'undefined') UI.addLog?.('CMD', 'GEMINI', summary);
     if (typeof KeepAlive !== 'undefined') KeepAlive.notify?.('🧠 GEMINI Weekly Review', summary, {});
 
-    // optional: ask a real LLM to refine the prompts (non-blocking, opt-in)
-    if (this.apiKey()) this._refineWithClaude(state, regime, wr).catch(()=>{});
+    // optional: ask the real Gemini LLM (via server-side bridge) to refine
+    // the persona prompts — non-blocking; only runs if a key is on the server.
+    if (typeof AIBridge !== 'undefined') this._refineWithLLM(state, regime, wr).catch(() => {});
     return { regime, wr, memo, ranked };
   },
 
@@ -166,36 +167,28 @@ const Gemini = {
     ].join(' ');
   },
 
-  // ── optional REAL LLM refinement (Anthropic). Opt-in via localStorage. ─
-  apiKey() { try { return localStorage.getItem('GEMINI_API_KEY') || ''; } catch { return ''; } },
-  async _refineWithClaude(state, regime, wr) {
-    const key = this.apiKey(); if (!key) return;
+  // ── REAL LLM refinement via Google Gemini (server-side key, no leak) ──
+  async _refineWithLLM(state, regime, wr) {
     const roster = Company.EMPLOYEES.map(e => ({
       id: e.id, name: e.name, combo: Company.COMBOS[state.assign[e.id]]?.name,
-      confWeight: state.confWeight[e.id], prompt: state.prompts[e.id]
+      confWeight: state.confWeight[e.id]
     }));
-    const body = {
-      model: 'claude-opus-4-8',
-      max_tokens: 1200,
-      system: 'You are GEMINI, head coach of a systematic Forex/Gold firm. ' +
-              'Return ONLY JSON {"prompts":{"<empId>":"<<=60-word system prompt>"}}.',
-      messages: [{ role: 'user', content:
-        `Regime=${regime}. Firm weekly win-rate=${wr}%. Sharpen each specialist's ` +
-        `system prompt for current conditions. Roster:\n${JSON.stringify(roster, null, 2)}` }]
-    };
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': key,
-                 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) return;
-    const data = await r.json();
+    const system = 'You are GEMINI, head coach of a systematic Forex/Gold firm. ' +
+      'Reply with ONLY JSON: {"prompts":{"<empId>":"<system prompt, <=55 words, Thai or English>"}}. No prose.';
+    const prompt = `Market regime=${regime}. Firm weekly win-rate=${wr}%. ` +
+      `For each specialist, write a sharpened system prompt that fits the regime and their combo. ` +
+      `Roster JSON: ${JSON.stringify(roster)}`;
+    const res = await AIBridge.ask(prompt, system);
+    if (!res || !res.ok || !res.text) return;
     try {
-      const txt = data.content?.[0]?.text || '{}';
-      const parsed = JSON.parse(txt.slice(txt.indexOf('{'), txt.lastIndexOf('}') + 1));
-      if (parsed.prompts) { Object.assign(state.prompts, parsed.prompts); this.save(state); }
-    } catch {}
+      const t = res.text;
+      const parsed = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
+      if (parsed.prompts) {
+        Object.assign(state.prompts, parsed.prompts);
+        this.save(state);
+        if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'GEMINI', '🧠 Gemini LLM refined agent prompts');
+      }
+    } catch (e) {}
   },
 
   // ── small helpers ────────────────────────────────────────────────────
