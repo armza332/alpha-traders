@@ -1850,9 +1850,15 @@ const BotBridge = {
   // Sends ai_buy_<SYM> or ai_sell_<SYM> command; EA bypasses cooldown
   _lastAISignalKey: null,
   async sendAISignal(sym, side) {
-    if (!Settings.get('webAISignalsToEA', false)) return;        // user must opt-in
+    if (!Settings.get('webAISignalsToEA', false)) {
+      if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'AI→EA', '⚠️ ไม่ส่ง: ปิด "ส่งสัญญาณ AI ไป EA" อยู่');
+      return;
+    }
     const url = Settings.get('botBridgeURL', '');
-    if (!url || url.length < 20) return;
+    if (!url || url.length < 20) {
+      if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'AI→EA', '⚠️ ไม่ส่ง: ยังไม่ตั้ง Bot Bridge URL ฝั่งเว็บ (กด ✎ ที่การ์ดพอร์ต)');
+      return;
+    }
 
     // Phase 23.1: SMALL-PORTFOLIO GUARD — wait for open trades to close before
     // firing a new one when the account is small (limits concurrent exposure).
@@ -1869,9 +1875,10 @@ const BotBridge = {
       return;
     }
 
-    // Map web symbol (XAUUSD/AUDUSD/EURUSD) to broker symbol (add 'm' suffix Exness Cent demo)
-    const brokerSym = this._mapToBrokerSym(sym);
-    if (!brokerSym) return;
+    // Map web symbol → broker symbol. If the EA's symbol list hasn't been
+    // received yet, fall back to the base symbol (EA's SymBaseMatch maps
+    // XAUUSD → XAUUSDm), so a signal is never silently dropped.
+    const brokerSym = this._mapToBrokerSym(sym) || sym.replace(/\W/g, '').toUpperCase();
     // Dedupe — don't spam if same signal repeats every analysis tick
     const key = brokerSym + '_' + side + '_' + Math.floor(Date.now() / (5 * 60 * 1000));
     if (this._lastAISignalKey === key) return;
