@@ -539,6 +539,7 @@ const Modal = {
     const ex = document.getElementById('s-enableXAU'); if (ex) ex.checked = Settings.get('enableXAU', true);
     const ea = document.getElementById('s-enableAUD'); if (ea) ea.checked = Settings.get('enableAUD', true);
     const ee = document.getElementById('s-enableEUR'); if (ee) ee.checked = Settings.get('enableEUR', true);
+    const tk = document.getElementById('s-tradeWithoutKB'); if (tk) tk.checked = Settings.get('tradeWithoutKB', false);
     const ag = document.getElementById('s-adxgate');   if (ag) ag.value   = Settings.get('adxGate', 20);
     const ka = document.getElementById('s-keepalive'); if (ka) ka.checked = Settings.get('keepAlive', true);
     // Analyst toggles
@@ -576,6 +577,7 @@ const Modal = {
     const ex = document.getElementById('s-enableXAU');    if (ex) Settings.set('enableXAU', ex.checked);
     const ea = document.getElementById('s-enableAUD');    if (ea) Settings.set('enableAUD', ea.checked);
     const ee = document.getElementById('s-enableEUR');    if (ee) Settings.set('enableEUR', ee.checked);
+    const tk = document.getElementById('s-tradeWithoutKB'); if (tk) Settings.set('tradeWithoutKB', tk.checked);
     const ag = document.getElementById('s-adxgate');      if (ag) Settings.set('adxGate', Math.max(0, Math.min(50, parseInt(ag.value) || 0)));
     const ka = document.getElementById('s-keepalive');    if (ka) {
       Settings.set('keepAlive', ka.checked);
@@ -2853,10 +2855,16 @@ const Company = {
 
     if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
 
+    // Phase 26: bypass KB-proof gates when KB is still empty (opt-in)
+    const bypassKB = (typeof Settings !== 'undefined') && Settings.get('tradeWithoutKB', false);
+
     // ── Grade (head-trader conviction) ──
     const fullAgree = live.n > 0 && (live.buy === live.n || live.sell === live.n);
     let grade = 'C';
-    if (live.conf >= 90 && wr >= 68 && fullAgree)       grade = 'S+';
+    if (bypassKB) {
+      // no KB history → grade from live conviction alone
+      grade = (live.conf >= 90 && fullAgree) ? 'S+' : live.conf >= 85 ? 'A' : live.conf >= 80 ? 'B' : 'C';
+    } else if (live.conf >= 90 && wr >= 68 && fullAgree) grade = 'S+';
     else if (live.conf >= 85 && wr >= 60)               grade = 'A';
     else if (live.conf >= 80 && wr >= 55)               grade = 'B';
     out.grade = grade;
@@ -2867,8 +2875,8 @@ const Company = {
     const minGrade = (typeof Settings !== 'undefined') ? Settings.get('minGrade', 'A') : 'A';
     if (agree < need)                       out.blockedBy = 'เทคนิคไม่พอเห็นตรงกัน';
     else if (live.conf < minConf)           out.blockedBy = `conf ${live.conf}% < ${minConf}%`;
-    else if (rec.R <= 0)                    out.blockedBy = 'KB ยังไม่ทำกำไร';
-    else if (wr < 50)                       out.blockedBy = `WR ${wr.toFixed(0)}% < 50%`;
+    else if (!bypassKB && rec.R <= 0)       out.blockedBy = 'KB ยังไม่ทำกำไร';
+    else if (!bypassKB && wr < 50)          out.blockedBy = `WR ${wr.toFixed(0)}% < 50%`;
     else if ((this._GRADE_RANK[grade]||0) < (this._GRADE_RANK[minGrade]||3))
                                             out.blockedBy = `Grade ${grade} < ${minGrade}`;
     else if (bot && parseFloat(bot.portfolioRisk||0) >= parseFloat(bot.maxPortfolioRisk||6))

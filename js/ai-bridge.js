@@ -92,10 +92,10 @@ const AIBridge = {
   },
   async _uiTest() {
     const st = document.getElementById('ai-key-status');
-    if (st) st.innerHTML = '⏳ ทดสอบเรียก Gemini...';
-    const res = await this.ask('ตอบกลับสั้นๆ ว่า "เชื่อมต่อ Gemini สำเร็จ" เป็นภาษาไทย');
+    if (st) st.innerHTML = '⏳ ทดสอบเรียก AI...';
+    const res = await this.ask('ตอบสั้นๆ คำเดียวว่า: พร้อม');
     if (st) st.innerHTML = res.ok
-      ? `<span style="color:var(--green)">✅ ${(res.text || '').slice(0, 80)}</span>`
+      ? `<span style="color:var(--green)">✅ ใช้ได้ · provider: ${res.provider || '?'} · model: ${res.model || '?'} · ตอบ: ${(res.text || '').slice(0, 40)}</span>`
       : `<span style="color:var(--red)">❌ ${res.error || 'failed'}</span>`;
   },
   async _uiStatus() {
