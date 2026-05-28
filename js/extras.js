@@ -2877,7 +2877,7 @@ const Company = {
     else if (live.conf < minConf)           out.blockedBy = `conf ${live.conf}% < ${minConf}%`;
     else if (!bypassKB && rec.R <= 0)       out.blockedBy = 'KB ยังไม่ทำกำไร';
     else if (!bypassKB && wr < 50)          out.blockedBy = `WR ${wr.toFixed(0)}% < 50%`;
-    else if ((this._GRADE_RANK[grade]||0) < (this._GRADE_RANK[minGrade]||3))
+    else if (!bypassKB && (this._GRADE_RANK[grade]||0) < (this._GRADE_RANK[minGrade]||3))
                                             out.blockedBy = `Grade ${grade} < ${minGrade}`;
     else if (bot && parseFloat(bot.portfolioRisk||0) >= parseFloat(bot.maxPortfolioRisk||6))
                                             out.blockedBy = 'ความเสี่ยงพอร์ตเต็ม';
@@ -3008,9 +3008,12 @@ const Company = {
     const minConf = (typeof Settings !== 'undefined') ? Settings.get('traderMinConf', 80) : 80;
     const out = { emp, combo, sym, live, rec, wr, signal: live.signal, conf: live.conf, grade: '-', approved: false, blockedBy: null };
     if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
+    const bypassKB = (typeof Settings !== 'undefined') && Settings.get('tradeWithoutKB', false);
     const fullAgree = live.n > 0 && (live.buy === live.n || live.sell === live.n);
     let grade = 'C';
-    if (live.conf >= 90 && wr >= 68 && fullAgree)       grade = 'S+';
+    if (bypassKB) {
+      grade = (live.conf >= 90 && fullAgree) ? 'S+' : live.conf >= 85 ? 'A' : live.conf >= 80 ? 'B' : 'C';
+    } else if (live.conf >= 90 && wr >= 68 && fullAgree) grade = 'S+';
     else if (live.conf >= 85 && wr >= 60)               grade = 'A';
     else if (live.conf >= 80 && wr >= 55)               grade = 'B';
     out.grade = grade;
@@ -3019,9 +3022,9 @@ const Company = {
     const minGrade = (typeof Settings !== 'undefined') ? Settings.get('minGrade', 'A') : 'A';
     if (agree < need)            out.blockedBy = 'เทคนิคไม่พอเห็นตรงกัน';
     else if (live.conf < minConf) out.blockedBy = `conf ${live.conf}% < ${minConf}%`;
-    else if (rec.R <= 0)         out.blockedBy = 'KB ยังไม่ทำกำไร';
-    else if (wr < 50)            out.blockedBy = `WR ${wr.toFixed(0)}% < 50%`;
-    else if ((this._GRADE_RANK[grade]||0) < (this._GRADE_RANK[minGrade]||3)) out.blockedBy = `Grade ${grade} < ${minGrade}`;
+    else if (!bypassKB && rec.R <= 0) out.blockedBy = 'KB ยังไม่ทำกำไร';
+    else if (!bypassKB && wr < 50)    out.blockedBy = `WR ${wr.toFixed(0)}% < 50%`;
+    else if (!bypassKB && (this._GRADE_RANK[grade]||0) < (this._GRADE_RANK[minGrade]||3)) out.blockedBy = `Grade ${grade} < ${minGrade}`;
     else if (bot && parseFloat(bot.portfolioRisk||0) >= parseFloat(bot.maxPortfolioRisk||6)) out.blockedBy = 'ความเสี่ยงพอร์ตเต็ม';
     out.approved = !out.blockedBy;
     out.score = (out.signal === 'wait' ? -1 : 1) * (live.conf + rec.R / Math.max(1, rec.total) * 100);
@@ -3676,6 +3679,22 @@ const Portfolios = {
     this.save(a);
     if (typeof Company !== 'undefined') Company.refresh();
   },
+  // Phase 26: set / change a portfolio's bridge URL (was only settable on add)
+  editURL(id) {
+    const a = this.load();
+    const p = a.find(x => x.id === id); if (!p) return;
+    const cur = p.bridgeURL || ((typeof Settings !== 'undefined') ? Settings.get('botBridgeURL', '') : '');
+    const url = prompt('Bot Bridge URL (Apps Script /exec) ของพอร์ต "' + p.name + '":', cur);
+    if (url === null) return;
+    p.bridgeURL = url.trim();
+    this.save(a);
+    if (p.active && typeof Settings !== 'undefined') {
+      Settings.set('botBridgeURL', p.bridgeURL);
+      if (typeof BotBridge !== 'undefined') { BotBridge.lastStatus = null; try { BotBridge.tick(); } catch {} }
+    }
+    this.pollAll();
+    if (typeof Company !== 'undefined') Company.refresh();
+  },
   remove(id) {
     let a = this.load();
     if (a.length <= 1) { alert('ต้องมีอย่างน้อย 1 พอร์ต'); return; }
@@ -3701,7 +3720,8 @@ const Portfolios = {
       return `<div style="flex:1;min-width:140px;padding:7px 9px;border:1px solid ${p.active?'var(--teal)':'var(--border)'};border-radius:6px;background:${p.active?'rgba(0,255,200,0.07)':'rgba(255,255,255,0.02)'};position:relative">
         <div style="display:flex;align-items:center;gap:4px">
           <span style="font-size:9px;color:${p.active?'var(--teal)':'#9aa'};font-weight:bold">${dot} ${p.name}</span>
-          ${a.length>1?`<span onclick="event.stopPropagation();Portfolios.remove('${p.id}')" title="ลบ" style="margin-left:auto;cursor:pointer;color:var(--red);font-size:9px">✕</span>`:''}
+          <span onclick="event.stopPropagation();Portfolios.editURL('${p.id}')" title="ใส่/แก้ Bridge URL" style="margin-left:auto;cursor:pointer;color:var(--teal);font-size:9px">✎</span>
+          ${a.length>1?`<span onclick="event.stopPropagation();Portfolios.remove('${p.id}')" title="ลบ" style="margin-left:6px;cursor:pointer;color:var(--red);font-size:9px">✕</span>`:''}
         </div>
         <div style="font-size:7px;color:#9aa;margin:2px 0">$${bal.toFixed(2)} / 🎯 $${p.target}${pnlTxt}</div>
         <div style="height:5px;background:#1a2030;border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${onTrack?'linear-gradient(90deg,var(--green),var(--gold))':'var(--red)'}"></div></div>
