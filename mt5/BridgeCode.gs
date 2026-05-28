@@ -78,14 +78,14 @@ function doPost(e) {
       return json({ ok: true, msg: 'Command queued', id: newId });
     }
 
-    // ── Phase 26: store / clear Google Gemini API key (server-side only) ──
+    // ── Phase 26: store / clear AI key + provider + model (server-side) ──
     if (data.type === 'set_ai_key') {
       if (data.clear) { props.deleteProperty('GEMINI_KEY'); return json({ ok: true, msg: 'AI key cleared' }); }
-      if (typeof data.key === 'string' && data.key.length > 10) {
-        props.setProperty('GEMINI_KEY', data.key);
-        if (data.model) props.setProperty('GEMINI_MODEL', data.model);
-        return json({ ok: true, msg: 'AI key stored' });
-      }
+      var saved = false;
+      if (typeof data.key === 'string' && data.key.length > 10) { props.setProperty('GEMINI_KEY', data.key); saved = true; }
+      if (data.model)    { props.setProperty('GEMINI_MODEL', data.model);    saved = true; }
+      if (data.provider) { props.setProperty('AI_PROVIDER',  data.provider); saved = true; }
+      if (saved) return json({ ok: true, msg: 'AI settings stored' });
       return json({ ok: false, error: 'bad key' });
     }
 
@@ -181,30 +181,50 @@ function doGet(e) {
   // ── Phase 26: AI key status — never returns the key itself ──
   if (action === 'ai_status') {
     return json({ ok: true, hasKey: !!props.getProperty('GEMINI_KEY'),
-                  model: props.getProperty('GEMINI_MODEL') || 'gemini-2.0-flash' });
+                  provider: props.getProperty('AI_PROVIDER') || 'gemini',
+                  model: props.getProperty('GEMINI_MODEL') || 'gemini-2.0-flash-lite' });
   }
 
-  // ── Phase 26: AI proxy → Google Gemini (key stays server-side) ──
+  // ── Phase 26: AI proxy (provider-aware: Gemini OR Groq) — key server-side ──
   if (action === 'ai') {
     if (e.parameter.secret !== SECRET) return json({ ok: false, error: 'Invalid secret' });
-    const key = props.getProperty('GEMINI_KEY');
+    var key = props.getProperty('GEMINI_KEY');
     if (!key) return json({ ok: false, error: 'No AI key set — บันทึก key ใน Settings ก่อน' });
-    const model  = props.getProperty('GEMINI_MODEL') || 'gemini-2.0-flash';
-    const prompt = e.parameter.prompt || '';
-    const system = e.parameter.system || '';
+    var provider = props.getProperty('AI_PROVIDER') || 'gemini';
+    var model    = props.getProperty('GEMINI_MODEL') ||
+                   (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.0-flash-lite');
+    var prompt = e.parameter.prompt || '';
+    var system = e.parameter.system || '';
     if (!prompt) return json({ ok: false, error: 'empty prompt' });
     try {
-      const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+      if (provider === 'groq') {
+        // Groq — OpenAI-compatible chat completions
+        var msgs = [];
+        if (system) msgs.push({ role: 'system', content: system });
+        msgs.push({ role: 'user', content: prompt });
+        var gr = UrlFetchApp.fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'post', contentType: 'application/json',
+          headers: { Authorization: 'Bearer ' + key },
+          payload: JSON.stringify({ model: model, messages: msgs, temperature: 0.7 }),
+          muteHttpExceptions: true
+        });
+        var go = JSON.parse(gr.getContentText());
+        var gt = go && go.choices && go.choices[0] && go.choices[0].message && go.choices[0].message.content;
+        if (!gt) return json({ ok: false, error: (go.error && go.error.message) || 'no text from groq' });
+        return json({ ok: true, text: gt, model: model, provider: 'groq' });
+      }
+      // default — Google Gemini
+      var body = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
       if (system) body.systemInstruction = { parts: [{ text: system }] };
-      const resp = UrlFetchApp.fetch(
+      var resp = UrlFetchApp.fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
         { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true }
       );
-      const out  = JSON.parse(resp.getContentText());
-      const text = out && out.candidates && out.candidates[0] && out.candidates[0].content &&
-                   out.candidates[0].content.parts && out.candidates[0].content.parts[0].text;
+      var out  = JSON.parse(resp.getContentText());
+      var text = out && out.candidates && out.candidates[0] && out.candidates[0].content &&
+                 out.candidates[0].content.parts && out.candidates[0].content.parts[0].text;
       if (!text) return json({ ok: false, error: (out.error && out.error.message) || 'no text from model' });
-      return json({ ok: true, text: text, model: model });
+      return json({ ok: true, text: text, model: model, provider: 'gemini' });
     } catch (err) {
       return json({ ok: false, error: err.toString() });
     }

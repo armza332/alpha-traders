@@ -16,15 +16,22 @@ const AIBridge = {
     catch (e) { return { ok: false, hasKey: false, error: String(e) }; }
   },
 
+  // model options per provider (UI dropdown)
+  _MODELS: {
+    gemini: ['gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+    groq:   ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b'],
+  },
+
   // Store the key on the server. no-cors → can't read reply, so we poll status.
-  async saveKey(key, model) {
+  async saveKey(key, model, provider) {
     const u = this.url();
     if (!u) return { ok: false, error: 'ยังไม่ได้ตั้ง Bot Bridge URL' };
     try {
       await fetch(u, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ type: 'set_ai_key', secret: this.SECRET, key: key, model: model || 'gemini-2.0-flash' })
+        body: JSON.stringify({ type: 'set_ai_key', secret: this.SECRET, key: key,
+                               model: model || 'gemini-2.0-flash-lite', provider: provider || 'gemini' })
       });
     } catch (e) { return { ok: false, error: String(e) }; }
     await new Promise(r => setTimeout(r, 1000));   // let the server persist
@@ -55,19 +62,32 @@ const AIBridge = {
   },
 
   // ── Settings UI helpers (called from buttons in index.html) ──
+  // repopulate the model dropdown when provider changes
+  _uiProviderChange() {
+    const p   = document.getElementById('s-aiprovider')?.value || 'gemini';
+    const sel = document.getElementById('s-aimodel'); if (!sel) return;
+    sel.innerHTML = (this._MODELS[p] || []).map(m => `<option value="${m}">${m}</option>`).join('');
+    const hint = document.getElementById('ai-key-hint');
+    if (hint) hint.innerHTML = (p === 'groq')
+      ? '<b style="color:var(--teal)">📘 หา key ฟรี:</b> <a href="https://console.groq.com/keys" target="_blank" style="color:var(--teal)">console.groq.com/keys</a> → Create API Key'
+      : '<b style="color:var(--teal)">📘 หา key:</b> <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--teal)">aistudio.google.com/app/apikey</a>';
+  },
+
   async _uiSave() {
     const inp = document.getElementById('s-aikey');
     const sel = document.getElementById('s-aimodel');
+    const pv  = document.getElementById('s-aiprovider');
     const st  = document.getElementById('ai-key-status');
     if (!inp) return;
-    const key   = inp.value.trim();
-    const model = sel ? sel.value : 'gemini-2.0-flash-lite';
+    const key      = inp.value.trim();
+    const model    = sel ? sel.value : 'llama-3.3-70b-versatile';
+    const provider = pv ? pv.value : 'gemini';
     if (key.length < 10) { if (st) st.innerHTML = '<span style="color:var(--red)">❌ key สั้นเกินไป</span>'; return; }
     if (st) st.innerHTML = '⏳ กำลังบันทึกขึ้นเซิร์ฟเวอร์...';
-    const res = await this.saveKey(key, model);
+    const res = await this.saveKey(key, model, provider);
     inp.value = '';   // never keep the key in the field/DOM
     if (st) st.innerHTML = res.hasKey
-      ? `<span style="color:var(--green)">✅ เก็บ key + model: ${res.model || model} ฝั่งเซิร์ฟเวอร์แล้ว</span>`
+      ? `<span style="color:var(--green)">✅ เก็บแล้ว · ${res.provider || provider} · ${res.model || model}</span>`
       : `<span style="color:var(--red)">❌ ไม่สำเร็จ: ${res.error || 'ตรวจ Bridge URL + re-deploy Apps Script'}</span>`;
   },
   async _uiTest() {
@@ -82,7 +102,7 @@ const AIBridge = {
     const st = document.getElementById('ai-key-status'); if (!st) return;
     const s = await this.status();
     st.innerHTML = s.hasKey
-      ? `<span style="color:var(--green)">🟢 มี key บนเซิร์ฟเวอร์ (model: ${s.model})</span>`
+      ? `<span style="color:var(--green)">🟢 มี key บนเซิร์ฟเวอร์ · ${s.provider || 'gemini'} · ${s.model}</span>`
       : `<span style="color:var(--gray)">⚪ ยังไม่มี key — ใส่แล้วกดบันทึก</span>`;
   },
 };
