@@ -103,6 +103,17 @@
 <!-- ═══════════════════ MAIN GRID ═══════════════════ -->
 <div id="main">
 
+  <!-- ═══════ PORTFOLIO SELECTOR (Phase 26: choose pairs to grow) ═══════ -->
+  <div class="team-panel" id="portfolio-panel" style="grid-column:1/-1">
+    <div class="team-header" style="background:linear-gradient(90deg,rgba(0,229,200,0.12),transparent)">
+      <div>
+        <div class="team-name">💼 พอร์ตที่กำลังปั้น — เลือกคู่เงินที่จะเทรด</div>
+        <div style="font-size:6px;color:var(--gray);margin-top:2px">คลิกเปิด/ปิดได้ทันที · คู่ที่ปิด = ไม่วิเคราะห์ · ไม่ส่งสัญญาณ · ไม่เทรด · ไม่เตือน</div>
+      </div>
+    </div>
+    <div id="portfolio-cards" style="display:flex;gap:8px;padding:10px;flex-wrap:wrap"></div>
+  </div>
+
   <!-- ═══════ TRADER ROSTER (Phase 21: 2 traders/pair, distinct skills) ═══════ -->
   <div class="team-panel" id="roster-panel" style="grid-column:1/-1">
     <div class="team-header" style="background:linear-gradient(90deg,rgba(255,215,0,0.12),transparent)">
@@ -571,14 +582,15 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=25.2"></script>
-<script src="js/market.js?v=25.2"></script>
-<script src="js/agents.js?v=25.2"></script>
-<script src="js/ui.js?v=25.2"></script>
-<script src="js/extras.js?v=25.2"></script>
+<script src="js/i18n.js?v=26"></script>
+<script src="js/market.js?v=26"></script>
+<script src="js/agents.js?v=26"></script>
+<script src="js/ui.js?v=26"></script>
+<script src="js/extras.js?v=26"></script>
 <script src="js/gemini.js?v=26"></script>
-<script src="js/backtest.js?v=25.2"></script>
-<script src="js/app.js?v=25.2"></script>
+<script src="js/portfolio.js?v=26"></script>
+<script src="js/backtest.js?v=26"></script>
+<script src="js/app.js?v=26"></script>
 
 </body>
 </html>
