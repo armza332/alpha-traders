@@ -80,6 +80,7 @@ input int     CommandPollSec     = 15;            // Poll web commands every N s
 input bool    AllowRemoteControl = true;          // Allow Close All / Pause from web (Phase 12.4)
 input bool    AcceptWebSignals   = false;         // 🧠 Phase 13: Accept AI trade signals from web (KB-guided)
 input bool    OnlyWebSignals     = false;         // 🎯 Phase 21.7: trade ONLY web signals (disable EA's own RSI+BB+Fib entries)
+input int     MaxSignalAgeSec    = 90;            // 🕐 Phase 26: drop web AI signals older than this (anti-stale; 0 = off)
 
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
@@ -1093,11 +1094,22 @@ void PollWebCommands() {
    if (cmdEnd < 0) return;
    string cmd = StringSubstr(body, cmdStart, cmdEnd - cmdStart);
 
-   ExecuteCommand(cmd);
+   // Phase 26: command age (anti-stale for AI signals). ts = web epoch ms (UTC).
+   int ageSec = 0;
+   int tsPos = StringFind(body, "\"ts\":");
+   if (tsPos >= 0) {
+      long tsMs = (long)StringToInteger(StringSubstr(body, tsPos + 5, 15));
+      if (tsMs > 0) {
+         long ageMs = (long)TimeGMT() * 1000 - tsMs;
+         if (ageMs > 0) ageSec = (int)(ageMs / 1000);
+      }
+   }
+
+   ExecuteCommand(cmd, ageSec);
    lastCmdId = idVal;
 }
 
-void ExecuteCommand(string cmd) {
+void ExecuteCommand(string cmd, int ageSec) {
    if (cmd == "close_all") {
       int closed = CloseAllMyPositions();
       Print("🔴 REMOTE: Close All → closed ", closed, " positions");
@@ -1130,6 +1142,10 @@ void ExecuteCommand(string cmd) {
    else if (StringFind(cmd, "ai_buy_") == 0 || StringFind(cmd, "ai_sell_") == 0) {
       if (!AcceptWebSignals) { Print("🚫 AI signal received but AcceptWebSignals=false"); return; }
       if (eaPaused)          { Print("⏸ EA paused — ignoring AI signal"); return; }
+      if (MaxSignalAgeSec > 0 && ageSec > MaxSignalAgeSec) {
+         PrintFormat("🕐 AI signal STALE (%ds > %ds) — dropped to avoid bad entry: %s", ageSec, MaxSignalAgeSec, cmd);
+         return;
+      }
       bool isBuy = (StringFind(cmd, "ai_buy_") == 0);
       string sym = StringSubstr(cmd, isBuy ? 7 : 8);   // strip prefix
       ExecuteAISignal(sym, isBuy);
