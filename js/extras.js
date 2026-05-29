@@ -2172,8 +2172,8 @@ const Office = {
       const pairBadge = e.sym ? e.sym.replace('USD','') : 'FLOAT';
       return `<div class="twr-emp${active?' active':''}" style="position:relative;border:1px solid ${active?sigCol:e.face.accColor+'55'};border-radius:8px;background:#0c1220;padding:7px;text-align:center;${active?`box-shadow:0 0 12px ${sigCol}66;color:${sigCol};`:''}">
         ${active?`<div style="position:absolute;top:5px;right:5px;z-index:2;font-size:6px;font-weight:bold;color:#04140d;background:${sigCol};padding:1px 5px;border-radius:4px">ออกไม้ ${active.replace('USD','')}</div>`:''}
-        <div style="width:100%;height:84px;overflow:hidden;border-radius:6px;background:linear-gradient(#131d2e,#0a0f18);display:flex;align-items:flex-start;justify-content:center">
-          <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:104px;width:auto;image-rendering:pixelated;filter:drop-shadow(0 2px 3px #000)">
+        <div style="width:100%;height:112px;overflow:hidden;border-radius:6px;background:linear-gradient(#131d2e,#0a0f18);display:flex;align-items:center;justify-content:center">
+          <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:108px;width:auto;image-rendering:pixelated;filter:drop-shadow(0 2px 3px #000)">
         </div>
         <div style="font-size:9px;color:#fff;font-weight:bold;margin-top:4px">${e.name} <span style="font-size:6px;color:${e.face.accColor}">· ${pairBadge}</span></div>
         <div style="font-size:6px;color:${e.face.accColor};margin-bottom:3px">${combo.icon} ${combo.name}</div>
@@ -3284,7 +3284,7 @@ const Company = {
       return `<div class="twr-emp${activePair?' active':''}" style="flex:1;min-width:200px;padding:8px;border:1px solid ${activePair?sigCol:'var(--border)'};border-radius:6px;background:${activePair?sigCol+'14':'rgba(255,255,255,0.02)'};position:relative;${activePair?`color:${sigCol};`:''}">
         ${bubble}
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-          <span class="twr-head" style="position:relative;display:inline-block;overflow:hidden;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;width:30px;height:40px;vertical-align:middle">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;left:50%;top:0;transform:translateX(-50%);height:150%;image-rendering:pixelated;pointer-events:none"></span>
+          <span class="twr-head" style="position:relative;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;width:32px;height:44px;vertical-align:middle">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;height:100%;width:auto;image-rendering:pixelated;pointer-events:none"></span>
           <div style="line-height:1.25;min-width:0">
             <div style="font-size:10px;color:var(--gold);font-weight:bold">${e.name}${activePair?` <span style="font-size:7px;color:var(--green)">🎯 ${activePair.replace('USD','')}</span>`:''}${!this._BUILTIN_EMP.includes(e.id)?` <span onclick="event.stopPropagation();Company.removeEmployee('${e.id}')" title="ปลด" style="cursor:pointer;color:var(--red);font-size:8px">✕</span>`:''}</div>
             <div style="font-size:6px;color:#9aa">${combo.icon} ${combo.name} · ${combo.agents.map(k=>this._KEYMAP[k]||k).join('+')}</div>

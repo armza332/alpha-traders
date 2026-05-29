@@ -29,8 +29,9 @@ const SpriteSlicer = {
     const W = this._img.naturalWidth, H = this._img.naturalHeight;
     const cellW = W / this.COLS;
     const bodyH = (H - this.TITLE_H) / this.ROWS;
-    // inset each cell so neighbouring characters don't bleed into the crop
-    const insetX = cellW * 0.16, insetTop = bodyH * 0.04, insetBot = bodyH * 0.02;
+    // inset sides so neighbouring characters don't bleed in; keep full height
+    // (top→bottom) so the whole figure shows and heads/legs aren't clipped
+    const insetX = cellW * 0.16, insetTop = 0, insetBot = 0;
     const srcX = col * cellW + insetX;
     const srcY = this.TITLE_H + row * bodyH + insetTop;
     const srcW = cellW - insetX * 2;
