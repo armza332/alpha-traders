@@ -366,7 +366,11 @@ void CheckSignal(string sym, int idx) {
    // ─── Trade execution (only if cooldown + position allow) ───
    // Phase 21.7: if OnlyWebSignals, the EA never opens its own trades —
    // it waits for high-confidence signals from the web head-traders.
-   if (OnlyWebSignals) { scanState[idx].tag = "WEB-ONLY"; return; }
+   if (OnlyWebSignals) {
+      // dashboard label reflects the active signal mode (EA-local runs separately)
+      scanState[idx].tag = (gSignalMode == 1) ? "EA-LOCAL" : (gSignalMode == 2) ? "EA+WEB" : "WEB-ONLY";
+      return;
+   }
    if (TimeCurrent() - lastSignalTime[idx] < effCooldownMin * 60) return;
    if (CountPositions(sym) >= effMaxPos) return;
 
