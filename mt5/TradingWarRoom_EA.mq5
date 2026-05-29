@@ -63,6 +63,9 @@ input double  BreakevenLockR     = 0.1;           // Lock +0.1R profit (cover sp
 input bool    UseTrailing        = true;          // 🪤 Trail SL after breakeven
 input double  TrailStartR        = 1.5;           // Start trailing at +N×R
 input double  TrailStepR         = 0.5;           // Trail by N×R steps
+input bool    UsePartialTP       = true;          // 💰 Phase 26: close part of position at +N×R (auto-skips if lot can't split)
+input double  PartialAtR         = 1.0;           // Take partial profit at +N×R
+input double  PartialPct         = 50;            // % of position to close (the rest runs to TP)
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
 
 input group "=== SYSTEM ==="
@@ -506,6 +509,33 @@ void ManagePositions() {
                        : (open - price) / rDist;
 
       double newSL = curSL;
+
+      // ── Partial take-profit (PORTFOLIO-SIZE AWARE) ──
+      // Closes PartialPct% of the position at +PartialAtR. Auto-skips when the
+      // lot can't be split (e.g., $30 account at min lot 0.01) so it never errors;
+      // activates automatically once the account grows enough to split lots.
+      if (UsePartialTP && profitR >= PartialAtR) {
+         string gvKey = "TWR_PART_" + IntegerToString((long)posInfo.Ticket());
+         if (!GlobalVariableCheck(gvKey)) {
+            double vol     = posInfo.Volume();
+            double minLot  = SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN);
+            double lotStep = SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP);
+            if (lotStep <= 0) lotStep = minLot;
+            double closeVol = MathFloor((vol * PartialPct / 100.0) / lotStep) * lotStep;
+            closeVol = NormalizeDouble(closeVol, 2);
+            // require BOTH the closed part and the remainder to be valid lots
+            if (closeVol >= minLot && (vol - closeVol) >= minLot) {
+               if (trade.PositionClosePartial(posInfo.Ticket(), closeVol)) {
+                  GlobalVariableSet(gvKey, 1);
+                  PrintFormat("💰 %s partial TP: closed %.2f of %.2f lot at +%.2fR — runner to breakeven",
+                              sym, closeVol, vol, profitR);
+               }
+            } else {
+               // account too small to split — mark done so we don't re-check every tick
+               GlobalVariableSet(gvKey, 1);
+            }
+         }
+      }
 
       // ── Breakeven move ──
       if (UseBreakeven && profitR >= BreakevenAtR) {
@@ -1231,6 +1261,8 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
    else if (entryType == DEAL_ENTRY_OUT) {
       // Position CLOSING — send trade record to web for AI training
       SendTradeRecord(trans.deal);
+      // Phase 26: clear the partial-TP flag for this closed position
+      GlobalVariableDel("TWR_PART_" + IntegerToString((long)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID)));
    }
 }
 
