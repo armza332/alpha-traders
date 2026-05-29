@@ -90,6 +90,8 @@ input group "=== SIGNAL MODE (Phase A) ==="
 enum ENUM_SIG_MODE { SIG_WEB=0, SIG_EA=1, SIG_BOTH=2 };
 input ENUM_SIG_MODE SignalMode   = SIG_WEB;       // 🔀 WEB=สัญญาณจากเว็บ · EA=EA คิดเอง · BOTH=ทั้งคู่ (เปลี่ยนจากเว็บได้)
 input double  LocalMinConf       = 70;            // EA-local: min combined conf (UT-Bot + Divergence) to fire
+input bool    EAUseFirmSniper    = false;         // 🎯 Phase C.2: EA-local ใช้ FirmSniper (hard-filter 4 ชั้น) แทน combo เดิมทุกคู่
+input double  DxyDeadband        = 0.05;          // 🎯 FirmSniper: |USD trend| ต่ำกว่านี้ = flat (ผ่านทั้ง buy/sell)
 
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
@@ -1550,8 +1552,120 @@ AgentOut AgentSMC(string sym, ENUM_TIMEFRAMES tf) {
    return o;
 }
 
+//═══════════════════ PHASE C.2: FVG + DXY + FIRM SNIPER ═══════════════════
+
+// 🟦 Fair Value Gap — 3-candle imbalance (price tends to fill). want>0=bull, <0=bear.
+//    Bull FVG: low of newer candle > high of older candle (gap up, demand imbalance).
+bool HasFVG(MqlRates &r[], int want) {
+   int n = ArraySize(r);
+   int lim = MathMin(n - 2, 18);
+   for (int k = 1; k < lim; k++) {
+      if (want > 0 && r[k].low > r[k+2].high) {             // bullish gap [r[k+2].high .. r[k].low]
+         if (r[0].close >= r[k+2].high) return true;        // still unfilled (price above gap base)
+      }
+      if (want < 0 && r[k].high < r[k+2].low) {             // bearish gap [r[k].high .. r[k+2].low]
+         if (r[0].close <= r[k+2].low) return true;
+      }
+   }
+   return false;
+}
+
+// 🟦 FVG soft-vote agent
+AgentOut AgentFVG(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 30, r) < 20) return o;
+   bool bull = HasFVG(r, +1), bear = HasFVG(r, -1);
+   int score = (bull ? 25 : 0) + (bear ? -25 : 0);
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(90.0, 50 + MathAbs(score) * 0.9);
+   return o;
+}
+
+// Synthetic USD index trend (no broker DXY needed). >0 USD strong, <0 USD weak.
+// Quote pairs (EURUSD..) up = USD weak; base pairs (USDJPY..) up = USD strong.
+double gUsdTrend = 0; datetime gUsdTrendTime = 0;
+string SymSuffix() { return (StringLen(Symbol1) > 6) ? StringSubstr(Symbol1, 6) : ""; }
+double PairMom(string pair) {
+   double c[]; ArraySetAsSeries(c, true);
+   if (CopyClose(pair, PERIOD_H1, 0, 21, c) < 21) return 0.0;
+   if (c[20] == 0) return 0.0;
+   return (c[0] - c[20]) / c[20] * 100.0;
+}
+double UsdTrend() {
+   if (TimeCurrent() - gUsdTrendTime < 60) return gUsdTrend;   // cache 60s
+   string suf = SymSuffix();
+   string quote[] = {"EURUSD","GBPUSD","AUDUSD","NZDUSD"};
+   string base[]  = {"USDJPY","USDCHF","USDCAD"};
+   double sum = 0; int cnt = 0;
+   for (int i = 0; i < ArraySize(quote); i++) {
+      string p = quote[i] + suf; if (!SymbolSelect(p, true)) continue;
+      double m = PairMom(p); if (m == 0) continue; sum += -m; cnt++;
+   }
+   for (int i = 0; i < ArraySize(base); i++) {
+      string p = base[i] + suf; if (!SymbolSelect(p, true)) continue;
+      double m = PairMom(p); if (m == 0) continue; sum += m; cnt++;
+   }
+   gUsdTrend = (cnt == 0) ? 0.0 : sum / cnt;
+   gUsdTrendTime = TimeCurrent();
+   return gUsdTrend;
+}
+
+// 🏛 DXY macro soft-vote agent (for XXXUSD pairs): USD weak → buy, USD strong → sell
+AgentOut AgentDXY(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   double usd = UsdTrend();
+   if (usd < -DxyDeadband)      o.dir = 1;
+   else if (usd > DxyDeadband)  o.dir = -1;
+   o.conf = MathMin(90.0, 50 + MathAbs(usd) * 25);
+   return o;
+}
+
+// 🎯 FIRM SNIPER — hard-filter confluence (ALL must pass). EA-local = 4 layers
+//    (news filter is web-only). Fires conf 95 ONLY on full confluence.
+//    1) Liquidity Sweep  2) Discount/Premium  3) OB + FVG  4) Macro DXY ไม่สวน
+AgentOut AgentSniper(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 55, r) < 55) return o;
+   double close = r[0].close;
+
+   // Layer 1: Liquidity sweep (20-bar swing)
+   double swingHi = -1e18, swingLo = 1e18;
+   for (int i = 1; i <= 19; i++) { swingHi = MathMax(swingHi, r[i].high); swingLo = MathMin(swingLo, r[i].low); }
+   bool bullSweep = (r[0].low  < swingLo && r[0].close > swingLo);
+   bool bearSweep = (r[0].high > swingHi && r[0].close < swingHi);
+
+   // Layer 2: Premium / Discount (50-bar range)
+   double hi = -1e18, lo = 1e18;
+   for (int i = 0; i < 50; i++) { hi = MathMax(hi, r[i].high); lo = MathMin(lo, r[i].low); }
+   double rangePos  = (hi > lo) ? (close - lo) / (hi - lo) : 0.5;
+   bool isDiscount  = (rangePos <= 0.40);
+   bool isPremium   = (rangePos >= 0.60);
+
+   // Layer 3: Entry trigger = Order Block + Fair Value Gap (same direction)
+   AgentOut ob = AgentOrderBlock(sym, tf);
+   bool nearBullOB = (ob.dir > 0), nearBearOB = (ob.dir < 0);
+   bool hasBullFVG = HasFVG(r, +1), hasBearFVG = HasFVG(r, -1);
+
+   // Layer 4: Macro DXY alignment
+   double usd = UsdTrend();
+   bool dxyOkBuy  = (usd <= DxyDeadband);    // USD not strengthening
+   bool dxyOkSell = (usd >= -DxyDeadband);   // USD not weakening
+
+   bool buyConfluence  = bullSweep && isDiscount && nearBullOB && hasBullFVG && dxyOkBuy;
+   bool sellConfluence = bearSweep && isPremium  && nearBearOB && hasBearFVG && dxyOkSell;
+
+   if (buyConfluence)       { o.dir = 1;  o.conf = 95; }
+   else if (sellConfluence) { o.dir = -1; o.conf = 95; }
+   return o;
+}
+
 // Dispatch an agent by key (all combo agents now ported)
 AgentOut AgentByKey(string key, string sym, ENUM_TIMEFRAMES tf, int idx) {
+   if (key == "fvg")        return AgentFVG(sym, tf);
+   if (key == "dxy")        return AgentDXY(sym, tf);
+   if (key == "sniper")     return AgentSniper(sym, tf);
    if (key == "utbot")      return AgentUTBot(sym, tf);
    if (key == "divergence") return AgentDivergence(sym, tf, idx);
    if (key == "rsi")        return AgentRSI(sym, tf, idx);
@@ -1569,6 +1683,8 @@ void GetComboKeys(string sym, string &keys[]) {
    int bi = (b == "XAUUSD") ? 0 : (b == "AUDUSD") ? 1 : (b == "EURUSD") ? 2 : -1;
    // Phase C: if the web (Commander/GEMINI) pushed a combo for this pair, use it
    if (bi >= 0 && StringLen(gCombo[bi]) > 0) { StringSplit(gCombo[bi], '.', keys); return; }
+   // Phase C.2: FirmSniper hard-filter mode — one mega-agent on every pair
+   if (EAUseFirmSniper) { ArrayResize(keys, 1); keys[0] = "sniper"; return; }
    // defaults (until the web pushes one)
    if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="divergence"; keys[2]="utbot"; }   // Aussie Power
    else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }   // Euro Trend
@@ -1595,9 +1711,12 @@ void EvaluateLocalCombo(string sym, int idx) {
       detail += keys[k] + (a.dir > 0 ? "+ " : "- ");
    }
    int net = 0, agree = 0;
-   if (votesBuy >= 2 && votesSell == 0)      { net = 1;  agree = votesBuy; }
-   else if (votesSell >= 2 && votesBuy == 0) { net = -1; agree = votesSell; }
-   else return;                               // need ≥2 agree + no opposition (confluence)
+   // Single-agent combo (e.g. FirmSniper hard-filter) fires on its own confluence;
+   // multi-agent combos still require ≥2 agree + no opposition.
+   int needAgree = (ArraySize(keys) == 1) ? 1 : 2;
+   if (votesBuy >= needAgree && votesSell == 0)      { net = 1;  agree = votesBuy; }
+   else if (votesSell >= needAgree && votesBuy == 0) { net = -1; agree = votesSell; }
+   else return;                               // need confluence (≥needAgree agree + no opposition)
    double conf = confSum / agree;
    if (conf < LocalMinConf) return;
 
