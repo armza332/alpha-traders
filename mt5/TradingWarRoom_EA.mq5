@@ -1391,12 +1391,13 @@ void EvaluateLocalCombo(string sym, int idx) {
    AgentOut ut = AgentUTBot(sym, effTF);
    AgentOut dv = AgentDivergence(sym, effTF, idx);
    if (ut.dir == 0) return;
-   // Phase A.1: fire on EITHER a fresh UT-Bot cross (strong trend trigger, conf≥85)
-   // OR trend + Divergence agreeing. Avoids the old "both rare events must coincide".
-   bool freshCross = (ut.conf >= 85);
-   bool divAgrees  = (dv.dir != 0 && dv.dir == ut.dir);
-   if (!freshCross && !divAgrees) return;
-   double conf = divAgrees ? MathMax(ut.conf, dv.conf) : ut.conf;
+   // Phase A.2: QUALITY mode — require 2-factor confluence: UT-Bot trend AND
+   // Divergence must agree (no firing on a 1-factor trend cross alone). Fires
+   // less often but each entry is confirmed. LocalMinConf is the quality dial:
+   // higher = fewer/better. A fresh cross (ut.conf≈89) + divergence easily clears it.
+   bool divAgrees = (dv.dir != 0 && dv.dir == ut.dir);
+   if (!divAgrees) return;
+   double conf = MathMax(ut.conf, dv.conf);
    if (conf < LocalMinConf) return;
 
    bool isBuy = (ut.dir > 0);
