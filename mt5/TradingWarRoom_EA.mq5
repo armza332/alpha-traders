@@ -1142,10 +1142,15 @@ void ExecuteCommand(string cmd, int ageSec) {
    else if (StringFind(cmd, "ai_buy_") == 0 || StringFind(cmd, "ai_sell_") == 0) {
       if (!AcceptWebSignals) { Print("🚫 AI signal received but AcceptWebSignals=false"); return; }
       if (eaPaused)          { Print("⏸ EA paused — ignoring AI signal"); return; }
-      if (MaxSignalAgeSec > 0 && ageSec > MaxSignalAgeSec) {
+      // Fail-OPEN on clock skew: only drop when age is inside a believable
+      // window. A huge age (> 1 hour) almost always means the PC clock /
+      // timezone differs from Google's — in that case DON'T block the signal.
+      if (MaxSignalAgeSec > 0 && ageSec > MaxSignalAgeSec && ageSec < 3600) {
          PrintFormat("🕐 AI signal STALE (%ds > %ds) — dropped to avoid bad entry: %s", ageSec, MaxSignalAgeSec, cmd);
          return;
       }
+      if (ageSec >= 3600)
+         PrintFormat("⏰ signal age %ds looks like clock skew — guard bypassed, executing: %s", ageSec, cmd);
       bool isBuy = (StringFind(cmd, "ai_buy_") == 0);
       string sym = StringSubstr(cmd, isBuy ? 7 : 8);   // strip prefix
       ExecuteAISignal(sym, isBuy);
