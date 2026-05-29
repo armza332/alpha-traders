@@ -3335,9 +3335,10 @@ const Company = {
         style="font-size:8px;padding:3px 10px;border:1px solid ${on?'var(--teal)':'var(--border)'};
                background:${on?'rgba(0,255,200,.15)':'transparent'};color:${on?'var(--teal)':'#9aa'};font-weight:${on?'bold':'normal'}">${m.label}${on?' ●':''}</button>`;
     }).join('');
-    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;margin-bottom:6px;border:1px dashed #2a3550;border-radius:5px">
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;margin-bottom:6px;border:1px dashed #2a3550;border-radius:5px;flex-wrap:wrap">
       <span style="font-size:7px;color:#9aa">โหมดสัญญาณ:</span>${btns}
-      <span style="font-size:6px;color:#778;margin-left:auto">EA ต้องเปิด AcceptWebSignals/รองรับโหมด · ส่งคำสั่งสลับไป EA ทันที</span>
+      <button onclick="Company.pushCombosToEA()" title="ส่ง combo คนเก่งสุดต่อคู่ไป EA (Phase C)" class="btn btn-secondary" style="font-size:8px;padding:3px 8px;border-color:var(--purple);color:#a78bfa">🧬 ส่ง combo → EA</button>
+      <span style="font-size:6px;color:#778;margin-left:auto">EA mode = EA คิดเอง · 🧬 = อัปเดตสูตรคนเก่งสุดให้ EA (GEMINI ส่งให้อัตโนมัติด้วย)</span>
     </div>`;
   },
   // Phase A: auto-measure EA-local vs Web from REAL closed trades (no manual watching)
@@ -3363,6 +3364,25 @@ const Company = {
       📊 <b style="color:var(--purple)">วัดผลโหมด</b> (จากไม้จริงที่ปิดแล้ว) — ${cell('⚡ EA-local', agg.local, 'var(--teal)')} &nbsp;|&nbsp; ${cell('🌐 Web', agg.web, 'var(--gold)')}
       <span style="color:#778">${verdict}</span>
     </div>`;
+  },
+  // Phase C: push each pair's BEST employee's combo to the EA (living roster).
+  // The EA then trades that combo locally — so selecting/training/hiring on the
+  // web flows straight into what the EA fires.
+  pushCombosToEA() {
+    if (typeof BotBridge === 'undefined' || !BotBridge.sendCommand) return;
+    const lines = [];
+    ['XAUUSD', 'AUDUSD', 'EURUSD'].forEach(sym => {
+      const emps = this.EMPLOYEES.filter(e => e.sym === sym);
+      if (!emps.length) return;
+      // pick the pair employee with the best real-trade R (fallback: first)
+      let best = emps[0], bestR = -1e9;
+      emps.forEach(e => { const st = this._employeeStats(e.id); if (st.R > bestR) { bestR = st.R; best = e; } });
+      const combo = this.COMBOS[best.combo];
+      if (!combo || !combo.agents) return;
+      BotBridge.sendCommand('combo_' + sym + '_' + combo.agents.join('.'));
+      lines.push(`${sym.replace('USD', '')}→${best.name}(${combo.name})`);
+    });
+    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')}`);
   },
   setSignalMode(m) {
     if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('mode_' + m);

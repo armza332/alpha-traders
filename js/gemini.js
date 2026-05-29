@@ -136,6 +136,9 @@ const Gemini = {
     // optional: ask the real Gemini LLM (via server-side bridge) to refine
     // the persona prompts — non-blocking; only runs if a key is on the server.
     if (typeof AIBridge !== 'undefined') this._refineWithLLM(state, regime, wr).catch(() => {});
+    // Phase C: after re-coaching, push the refreshed best combos to the EA so the
+    // living roster (who's hot / who got retuned) flows straight into EA trading.
+    if (typeof Company !== 'undefined' && Company.pushCombosToEA) { try { Company.pushCombosToEA(); } catch (e) {} }
     return { regime, wr, memo, ranked };
   },
 

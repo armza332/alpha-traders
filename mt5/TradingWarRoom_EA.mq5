@@ -114,6 +114,7 @@ datetime      lastCmdPoll = 0;
 int           lastCmdId   = 0;       // last processed command ID
 bool          eaPaused    = false;   // Phase 12.4: remote pause flag
 int           gSignalMode = 0;       // Phase A: 0=WEB 1=EA 2=BOTH (runtime; web can change)
+string        gCombo[3];             // Phase C: per-pair combo override [0]=XAU [1]=AUD [2]=EUR (dot-keys; ""=default)
 int           rsiHandle[MAX_SYMS], bbHandle[MAX_SYMS], atrHandle[MAX_SYMS];
 string        symbols[MAX_SYMS];
 int           nActiveSyms = 0;       // dynamically counted in OnInit
@@ -1198,6 +1199,17 @@ void ExecuteCommand(string cmd, int ageSec) {
    else if (cmd == "mode_web")  { gSignalMode = 0; Print("🌐 REMOTE: signal mode → WEB"); }
    else if (cmd == "mode_ea")   { gSignalMode = 1; Print("⚡ REMOTE: signal mode → EA (local)"); }
    else if (cmd == "mode_both") { gSignalMode = 2; Print("🔀 REMOTE: signal mode → BOTH"); }
+   // Phase C: web pushes the chosen combo per pair → combo_<BASE6>_<k1.k2.k3>
+   else if (StringFind(cmd, "combo_") == 0) {
+      string rest = StringSubstr(cmd, 6);
+      int u = StringFind(rest, "_");
+      if (u > 0) {
+         string base = StringSubstr(rest, 0, u); StringToUpper(base);
+         string keysStr = StringSubstr(rest, u + 1);
+         int bi = (base == "XAUUSD") ? 0 : (base == "AUDUSD") ? 1 : (base == "EURUSD") ? 2 : -1;
+         if (bi >= 0) { gCombo[bi] = keysStr; PrintFormat("🧬 REMOTE: %s combo → %s", base, keysStr); }
+      }
+   }
    // Phase 12.9: per-symbol enable/disable
    else if (StringFind(cmd, "sym_") == 0) {
       // Format: sym_1_on / sym_1_off / sym_2_on / ...
@@ -1531,9 +1543,13 @@ AgentOut AgentByKey(string key, string sym, ENUM_TIMEFRAMES tf, int idx) {
 // Per-symbol combo = the pair's KB-best agents (mirror of web pair combos).
 void GetComboKeys(string sym, string &keys[]) {
    string b = StringSubstr(sym, 0, 6); StringToUpper(b);
+   int bi = (b == "XAUUSD") ? 0 : (b == "AUDUSD") ? 1 : (b == "EURUSD") ? 2 : -1;
+   // Phase C: if the web (Commander/GEMINI) pushed a combo for this pair, use it
+   if (bi >= 0 && StringLen(gCombo[bi]) > 0) { StringSplit(gCombo[bi], '.', keys); return; }
+   // defaults (until the web pushes one)
    if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="divergence"; keys[2]="utbot"; }   // Aussie Power
    else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }   // Euro Trend
-   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="orderblock"; keys[2]="ichimoku"; } // Gold Range (Batch 2)
+   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="orderblock"; keys[2]="ichimoku"; } // Gold Range
    else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }
 }
 

@@ -92,7 +92,8 @@ function doPost(e) {
       const c = String(data.cmd || '');
       const isToggle = /^sym_[1-3]_(on|off)$/.test(c);            // Phase 12.9 per-symbol
       const isAISig  = /^ai_(buy|sell)_[A-Za-z0-9_]+$/.test(c);   // Phase 13 AI signals (+agent tag suffix)
-      if (!base.includes(c) && !isToggle && !isAISig) {
+      const isCombo  = /^combo_[A-Za-z]{6}_[a-z.]+$/.test(c);     // Phase C: per-pair combo push
+      if (!base.includes(c) && !isToggle && !isAISig && !isCombo) {
         return json({ ok: false, error: 'Unknown cmd: ' + c });
       }
       const lastId = parseInt(props.getProperty('LAST_CMD_ID') || '0', 10);
