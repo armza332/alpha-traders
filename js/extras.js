@@ -3313,6 +3313,7 @@ const Company = {
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>
       ${this._modeBar()}
+      ${this._modePerf()}
       <div style="font-size:7px;padding:4px 6px;background:rgba(0,255,200,0.05);border:1px solid var(--teal);border-radius:5px;margin-bottom:6px">🎯 รอบนี้ใครได้คุม: ${wBanner}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${cards}</div>
       <div style="font-size:6px;color:#778;margin-top:4px">⭐ = เรตติ้งจากผลจริง (ต้อง ≥3 ไม้ถึงให้ดาว) · ออกซิก = จำนวนครั้งที่ยิง · W/L/R = ผลที่จับคู่กับไม้จริงได้</div>
@@ -3337,6 +3338,30 @@ const Company = {
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;margin-bottom:6px;border:1px dashed #2a3550;border-radius:5px">
       <span style="font-size:7px;color:#9aa">โหมดสัญญาณ:</span>${btns}
       <span style="font-size:6px;color:#778;margin-left:auto">EA ต้องเปิด AcceptWebSignals/รองรับโหมด · ส่งคำสั่งสลับไป EA ทันที</span>
+    </div>`;
+  },
+  // Phase A: auto-measure EA-local vs Web from REAL closed trades (no manual watching)
+  _modePerf() {
+    const trades = (typeof BotBridge !== 'undefined' && BotBridge.allTrades) ? BotBridge.allTrades : [];
+    const agg = { local: { n:0, w:0, R:0 }, web: { n:0, w:0, R:0 } };
+    trades.forEach(t => {
+      if (!t || !t.outcome || t.outcome === 'breakeven') return;
+      const isLocal = (t.agent === 'local');
+      const k = isLocal ? 'local' : (t.agent && t.agent !== 'ea') ? 'web' : null;
+      if (!k) return;
+      agg[k].n++; if (t.outcome === 'win') agg[k].w++; agg[k].R += parseFloat(t.rMult) || 0;
+    });
+    const cell = (label, a, col) => {
+      const wr = a.n ? Math.round(a.w / a.n * 100) : 0;
+      const rc = a.R > 0 ? 'var(--green)' : a.R < 0 ? 'var(--red)' : '#9aa';
+      return `<span style="color:${col}">${label}</span> <b>${a.n}</b> ไม้ · WR <b>${wr}%</b> · <b style="color:${rc}">${a.R>=0?'+':''}${a.R.toFixed(1)}R</b>`;
+    };
+    const verdict = (agg.local.n >= 5 && agg.web.n >= 5)
+      ? (agg.local.R > agg.web.R ? ' → ⚡ EA นำ' : agg.web.R > agg.local.R ? ' → 🌐 Web นำ' : ' → เสมอ')
+      : ' (เก็บ ≥5 ไม้/ฝั่ง เพื่อเทียบ)';
+    return `<div style="font-size:7px;padding:5px 8px;margin-bottom:6px;border:1px solid var(--purple);border-radius:5px;background:rgba(120,80,255,.05)">
+      📊 <b style="color:var(--purple)">วัดผลโหมด</b> (จากไม้จริงที่ปิดแล้ว) — ${cell('⚡ EA-local', agg.local, 'var(--teal)')} &nbsp;|&nbsp; ${cell('🌐 Web', agg.web, 'var(--gold)')}
+      <span style="color:#778">${verdict}</span>
     </div>`;
   },
   setSignalMode(m) {
