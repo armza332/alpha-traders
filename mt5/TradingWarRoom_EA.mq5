@@ -1428,14 +1428,104 @@ AgentOut AgentMTF(string sym) {
    return o;
 }
 
-// Dispatch an agent by key. Batch-2 agents (smc/orderblock/ichimoku/sweep) return
-// neutral (dir 0) until ported — combos needing them simply get fewer voters.
+// ── Phase B batch 2: structural agents (ported from web JS) ──
+
+// Ichimoku — price vs cloud + Tenkan/Kijun (uses MT5 native iIchimoku)
+AgentOut AgentIchimoku(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   int h = iIchimoku(sym, tf, 9, 26, 52);
+   if (h == INVALID_HANDLE) return o;
+   double tk[], kj[], sa[], sb[];
+   ArraySetAsSeries(tk, true); ArraySetAsSeries(kj, true); ArraySetAsSeries(sa, true); ArraySetAsSeries(sb, true);
+   bool ok = (CopyBuffer(h,0,1,1,tk)==1 && CopyBuffer(h,1,1,1,kj)==1 && CopyBuffer(h,2,1,1,sa)==1 && CopyBuffer(h,3,1,1,sb)==1);
+   IndicatorRelease(h);
+   if (!ok) return o;
+   double close = iClose(sym, tf, 1);
+   double cloudTop = MathMax(sa[0], sb[0]), cloudBot = MathMin(sa[0], sb[0]);
+   int score = 0;
+   if (close > cloudTop) score += 20; else if (close < cloudBot) score -= 20;
+   if (tk[0] > kj[0])    score += 15; else if (tk[0] < kj[0])    score -= 15;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.0);
+   return o;
+}
+
+// Liquidity Sweep — wick beyond 19-bar swing then close back (exact port)
+AgentOut AgentSweep(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 21, r) < 21) return o;     // r[0]=last closed, r[1..19]=swing window
+   double swingHi = -1e18, swingLo = 1e18;
+   for (int i = 1; i <= 19; i++) { swingHi = MathMax(swingHi, r[i].high); swingLo = MathMin(swingLo, r[i].low); }
+   bool bullSweep = (r[0].low  < swingLo && r[0].close > swingLo);
+   bool bearSweep = (r[0].high > swingHi && r[0].close < swingHi);
+   int score = bullSweep ? 28 : bearSweep ? -28 : 0;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score));
+   return o;
+}
+
+// Order Block — nearest demand/supply zone (bearish candle before swing low =
+// bull OB; bullish candle before swing high = bear OB). Simplified port.
+AgentOut AgentOrderBlock(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   int got = CopyRates(sym, tf, 1, 50, r);
+   if (got < 30) return o;
+   int n = ArraySize(r);
+   double close = r[0].close;
+   int loIdx = 0, hiIdx = 0;
+   for (int i = 1; i < n; i++) { if (r[i].low < r[loIdx].low) loIdx = i; if (r[i].high > r[hiIdx].high) hiIdx = i; }
+   int score = 0;
+   // bull OB: last bearish candle just OLDER than the swing low (higher series index)
+   for (int j = loIdx + 1; j <= MathMin(n - 1, loIdx + 5); j++) {
+      if (r[j].close < r[j].open) { if (close >= r[j].low && close <= r[j].high * 1.02) score += 25; break; }
+   }
+   // bear OB: last bullish candle just older than the swing high
+   for (int j = hiIdx + 1; j <= MathMin(n - 1, hiIdx + 5); j++) {
+      if (r[j].close > r[j].open) { if (close <= r[j].high && close >= r[j].low * 0.98) score -= 25; break; }
+   }
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.9);
+   return o;
+}
+
+// SMC — structure (EMA20 vs EMA50) + Break of Structure + Order-Block bias
+AgentOut AgentSMC(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   int h20 = iMA(sym, tf, 20, 0, MODE_EMA, PRICE_CLOSE), h50 = iMA(sym, tf, 50, 0, MODE_EMA, PRICE_CLOSE);
+   if (h20 == INVALID_HANDLE || h50 == INVALID_HANDLE) return o;
+   double e20[], e50[]; ArraySetAsSeries(e20, true); ArraySetAsSeries(e50, true);
+   bool ok = (CopyBuffer(h20,0,1,1,e20)==1 && CopyBuffer(h50,0,1,1,e50)==1);
+   IndicatorRelease(h20); IndicatorRelease(h50);
+   if (!ok) return o;
+   int score = 0;
+   if (e20[0] > e50[0]) score += 20; else if (e20[0] < e50[0]) score -= 20;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 21, r) >= 21) {
+      double swHigh = -1e18, swLow = 1e18;
+      for (int i = 5; i <= 19; i++) { swHigh = MathMax(swHigh, r[i].high); swLow = MathMin(swLow, r[i].low); }
+      if (r[0].close > swHigh && r[1].close <= swHigh) score += 25;   // BOS up
+      if (r[0].close < swLow  && r[1].close >= swLow)  score -= 25;   // BOS down
+   }
+   AgentOut ob = AgentOrderBlock(sym, tf);
+   score += ob.dir * 15;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.4);
+   return o;
+}
+
+// Dispatch an agent by key (all combo agents now ported)
 AgentOut AgentByKey(string key, string sym, ENUM_TIMEFRAMES tf, int idx) {
    if (key == "utbot")      return AgentUTBot(sym, tf);
    if (key == "divergence") return AgentDivergence(sym, tf, idx);
    if (key == "rsi")        return AgentRSI(sym, tf, idx);
    if (key == "mtf")        return AgentMTF(sym);
-   AgentOut o; o.dir = 0; o.conf = 0; return o;   // not yet ported
+   if (key == "ichimoku")   return AgentIchimoku(sym, tf);
+   if (key == "sweep")      return AgentSweep(sym, tf);
+   if (key == "orderblock") return AgentOrderBlock(sym, tf);
+   if (key == "smc")        return AgentSMC(sym, tf);
+   AgentOut o; o.dir = 0; o.conf = 0; return o;   // unknown key
 }
 
 // Per-symbol combo = the pair's KB-best agents (mirror of web pair combos).
