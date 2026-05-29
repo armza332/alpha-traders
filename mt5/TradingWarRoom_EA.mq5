@@ -1282,10 +1282,17 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
       CaptureOpenContext(trans.deal);
    }
    else if (entryType == DEAL_ENTRY_OUT) {
-      // Position CLOSING — send trade record to web for AI training
+      // Phase 26 FIX: a PARTIAL close also fires DEAL_ENTRY_OUT. If the position
+      // still exists, it was a partial (runner open) — do NOT send a trade record
+      // or clear the partial flag (that would let it re-partial repeatedly).
+      ulong pid = HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
+      if (PositionSelectByTicket(pid)) {
+         Print("💰 Partial close — runner still open; record/flag kept until full close");
+         return;
+      }
+      // FULL close — record the trade + clear the partial-TP flag
       SendTradeRecord(trans.deal);
-      // Phase 26: clear the partial-TP flag for this closed position
-      GlobalVariableDel("TWR_PART_" + IntegerToString((long)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID)));
+      GlobalVariableDel("TWR_PART_" + IntegerToString((long)pid));
    }
 }
 

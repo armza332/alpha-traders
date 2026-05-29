@@ -22,6 +22,28 @@
 
 const SECRET = 'twr-secret';  // Must match EA's WebhookSecret
 
+// Phase 26: paste your Google Sheet ID here to archive every closed trade.
+// Get it from the Sheet URL: docs.google.com/spreadsheets/d/<THIS_IS_THE_ID>/edit
+// Leave '' to disable (no error). First run will ask to authorize Sheets access.
+const SHEET_ID = '';
+
+// Append one closed trade as a row (creates the Trades tab + header on first use)
+function appendTradeToSheet(d) {
+  if (!SHEET_ID) return;
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    let sh = ss.getSheetByName('Trades');
+    if (!sh) {
+      sh = ss.insertSheet('Trades');
+      sh.appendRow(['closeTime','date','sym','side','agent','entry','exit','profit','rMult','outcome','posId']);
+    }
+    const dt = d.closeTime ? new Date(d.closeTime * 1000) : new Date();
+    sh.appendRow([dt, Utilities.formatDate(dt, 'GMT', 'yyyy-MM-dd'),
+                  d.sym, d.side, d.agent || '', d.entry, d.exit, d.profit,
+                  d.rMult, d.outcome, String(d.posId)]);
+  } catch (err) { /* Sheets not authorized / bad ID — silently skip */ }
+}
+
 // ─── POST: Receive status from EA OR command from web ────
 function doPost(e) {
   try {
@@ -60,6 +82,7 @@ function doPost(e) {
       });
       if (trades.length > 500) trades.length = 500;   // keep last 500
       props.setProperty('LIVE_TRADES', JSON.stringify(trades));
+      appendTradeToSheet(data);   // Phase 26: archive to Google Sheet (if SHEET_ID set)
       return json({ ok: true, msg: 'trade recorded', count: trades.length });
     }
 
