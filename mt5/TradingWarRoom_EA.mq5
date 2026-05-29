@@ -205,6 +205,23 @@ int OnInit() {
                AccountInfoDouble(ACCOUNT_BALANCE),
                AccountInfoDouble(ACCOUNT_EQUITY));
 
+   // Phase 26: skip the command backlog on (re)start. Set lastCmdId to the
+   // current latest id so a recompile/reload does NOT re-execute an old command
+   // (this caused a stale order to appear right after recompiling).
+   if (StringLen(WebhookURL) > 10) {
+      string u = WebhookURL + "?action=command&secret=" + WebhookSecret + "&since=0";
+      char ip[]; char rr[]; string hh;
+      ResetLastError();
+      if (WebRequest("GET", u, "", 5000, ip, rr, hh) == 200) {
+         string body = CharArrayToString(rr, 0, -1, CP_UTF8);
+         int p = StringFind(body, "\"id\":");
+         if (p >= 0) {
+            lastCmdId = (int)StringToInteger(StringSubstr(body, p + 5, 10));
+            PrintFormat("⏭ Skipping command backlog — starting from cmd id %d (ignore old queued commands)", lastCmdId);
+         }
+      }
+   }
+
    return INIT_SUCCEEDED;
 }
 
