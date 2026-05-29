@@ -1826,7 +1826,7 @@ const BotBridge = {
     if (!t.outcome || t.outcome === 'breakeven') return;
     // Phase 24: attribute this closed trade to the employee who fired its signal (audit)
     if (typeof Company !== 'undefined' && Company._attachOutcome) {
-      try { Company._attachOutcome(t.sym, t.outcome, t.rMult); } catch (e) {}
+      try { Company._attachOutcome(t.sym, t.outcome, t.rMult, t.agent); } catch (e) {}
     }
     // EA used RSI + BB + Fib confluence — all agreed on direction
     const sigDir = (t.side === 'buy') ? 'buy' : 'sell';
@@ -1856,7 +1856,7 @@ const BotBridge = {
   // Auto-called from app.js when Commander emits Grade A+ buy/sell signal
   // Sends ai_buy_<SYM> or ai_sell_<SYM> command; EA bypasses cooldown
   _lastAISignalKey: null,
-  async sendAISignal(sym, side) {
+  async sendAISignal(sym, side, empId) {
     if (!Settings.get('webAISignalsToEA', false)) {
       if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'AI→EA', '⚠️ ไม่ส่ง: ปิด "ส่งสัญญาณ AI ไป EA" อยู่');
       return;
@@ -1891,7 +1891,9 @@ const BotBridge = {
     if (this._lastAISignalKey === key) return;
     this._lastAISignalKey = key;
 
-    const cmd = 'ai_' + side + '_' + brokerSym;
+    // Phase 26: append agent tag (emp_cl → cl) so the EA can attribute the trade
+    const tag = (empId || '').replace('emp_', '');
+    const cmd = 'ai_' + side + '_' + brokerSym + (tag ? '_' + tag : '');
     try {
       await fetch(url, {
         method: 'POST',
@@ -3151,14 +3153,19 @@ const Company = {
     this._saveAudit(a);
   },
   // Attach a closed-trade outcome to the most recent unmatched signal for that symbol
-  _attachOutcome(sym, outcome, rMult) {
+  _attachOutcome(sym, outcome, rMult, agent) {
     const base = (sym || '').replace(/[mzcr.]+$/i, '').replace('USD', '');
+    // Phase 26: exact attribution — if the EA reported which agent fired it,
+    // only credit THAT employee's signal (agent tag e.g. 'cl' → 'emp_cl').
+    const wantEmp = (agent && agent !== 'ea' && agent !== 'web') ? ('emp_' + agent) : null;
     const a = this._loadAudit();
     for (let i = a.length - 1; i >= 0; i--) {
       const e = a[i];
       if (e.outcome) continue;
       const eb = (e.sym || '').replace(/[mzcr.]+$/i, '').replace('USD', '');
-      if (eb === base && (Date.now() - e.ts) < 4 * 3600 * 1000) {
+      if (eb !== base) continue;
+      if (wantEmp && e.empId !== wantEmp) continue;
+      if ((Date.now() - e.ts) < 4 * 3600 * 1000) {
         e.outcome = outcome; e.rMult = rMult; this._saveAudit(a); return e.empId;
       }
     }
@@ -3332,7 +3339,7 @@ const Company = {
       this._logSignal(d.emp.id, sym, d.signal, d.grade, d.conf);   // AUDIT
       this._beep(d.signal);                                        // SOUND
       if (typeof BotBridge !== 'undefined' && BotBridge.sendAISignal) {
-        BotBridge.sendAISignal(sym, d.signal);
+        BotBridge.sendAISignal(sym, d.signal, d.emp && d.emp.id);
         if (typeof UI !== 'undefined' && UI.addLog)
           UI.addLog('CMD', d.emp.name, `🎯 ${d.emp.name} (${d.combo.name}) ยิง ${d.signal.toUpperCase()} ${sym.replace('USD','')} · Grade ${d.grade} · conf ${d.conf}%`);
       }

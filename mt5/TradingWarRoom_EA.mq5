@@ -152,6 +152,7 @@ struct TradeCtx {
    string sessionAtEntry;
    datetime openTime;
    double riskUSD;
+   string agentTag;        // Phase 26: which web agent fired this (for exact attribution)
 };
 TradeCtx openCtx[];        // dynamic array
 int      openCtxCount = 0;
@@ -358,7 +359,7 @@ void CheckSignal(string sym, int idx) {
 }
 
 //═══════════════════ EXECUTE TRADE ══════════════════════════════════
-void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi) {
+void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, string agentTag = "ea") {
    double bid = SymbolInfoDouble(sym, SYMBOL_BID);
    double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
    double entry = isBuy ? ask : bid;
@@ -405,7 +406,9 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi) {
    if (lot < MinLot) lot = MinLot;
    if (lot > MaxLot) lot = MaxLot;
 
-   string comment = StringFormat("TWR %s RSI%.0f", isBuy ? "BUY" : "SELL", rsi);
+   // Phase 26: dash-delimited so the EA can read the agent tag back on close
+   //   format: TWR-<B|S>-<agentTag>-R<rsi>  (e.g., TWR-B-cl-R43)
+   string comment = StringFormat("TWR-%s-%s-R%.0f", isBuy ? "B" : "S", agentTag, rsi);
    bool ok;
    if (isBuy) ok = trade.Buy(lot, sym, entry, sl, tp, comment);
    else       ok = trade.Sell(lot, sym, entry, sl, tp, comment);
@@ -1184,8 +1187,11 @@ void ExecuteCommand(string cmd, int ageSec) {
       if (ageSec >= 3600)
          PrintFormat("⏰ signal age %ds looks like clock skew — guard bypassed, executing: %s", ageSec, cmd);
       bool isBuy = (StringFind(cmd, "ai_buy_") == 0);
-      string sym = StringSubstr(cmd, isBuy ? 7 : 8);   // strip prefix
-      ExecuteAISignal(sym, isBuy);
+      string rest = StringSubstr(cmd, isBuy ? 7 : 8);  // "XAUUSDm" or "XAUUSDm_cl"
+      string sym = rest, agentTag = "web";
+      int us = StringFind(rest, "_");
+      if (us > 0) { sym = StringSubstr(rest, 0, us); agentTag = StringSubstr(rest, us + 1); }
+      ExecuteAISignal(sym, isBuy, agentTag);
    }
 }
 
@@ -1198,7 +1204,7 @@ bool SymBaseMatch(string a, string b) {
 }
 
 // Phase 13: Execute trade requested by web AI (bypasses cooldown, uses current ATR for SL)
-void ExecuteAISignal(string sym, bool isBuy) {
+void ExecuteAISignal(string sym, bool isBuy, string agentTag = "web") {
    // Find symbol index in active list (Phase 21.5: tolerant base-symbol match)
    int idx = -1;
    for (int i = 0; i < nActiveSyms; i++) {
@@ -1229,7 +1235,7 @@ void ExecuteAISignal(string sym, bool isBuy) {
    if (CopyBuffer(rsiHandle[idx], 0, 0, 1, rsiArr) != 1) return;
 
    PrintFormat("🧠 AI SIGNAL: %s %s (bypass cooldown)", sym, isBuy ? "BUY" : "SELL");
-   ExecuteTrade(sym, idx, isBuy, atrArr[0], rsiArr[0]);
+   ExecuteTrade(sym, idx, isBuy, atrArr[0], rsiArr[0], agentTag);
    // Don't update lastSignalTime — AI signal is exempt
 }
 
@@ -1295,9 +1301,11 @@ void CaptureOpenContext(ulong dealTicket) {
    double bal = AccountInfoDouble(ACCOUNT_BALANCE);
    double riskUSD = bal * RiskPercent / 100.0;
 
-   // Get SL from position (just opened)
-   double sl = 0;
-   if (PositionSelectByTicket(posId)) sl = PositionGetDouble(POSITION_SL);
+   // Get SL + agent tag from position (just opened). Comment = TWR-<B|S>-<tag>-R<rsi>
+   double sl = 0; string cmt = "";
+   if (PositionSelectByTicket(posId)) { sl = PositionGetDouble(POSITION_SL); cmt = PositionGetString(POSITION_COMMENT); }
+   string _pp[]; string agentTag = "ea";
+   if (StringSplit(cmt, '-', _pp) >= 3 && StringLen(_pp[2]) > 0) agentTag = _pp[2];
 
    // Append to openCtx
    ArrayResize(openCtx, openCtxCount + 1);
@@ -1312,6 +1320,7 @@ void CaptureOpenContext(ulong dealTicket) {
    openCtx[openCtxCount].sessionAtEntry = IsLondonNYSession() ? (_tm.hour < 13 ? "london" : "ny") : "asia";
    openCtx[openCtxCount].openTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
    openCtx[openCtxCount].riskUSD  = riskUSD;
+   openCtx[openCtxCount].agentTag = agentTag;
    openCtxCount++;
 }
 
@@ -1335,6 +1344,7 @@ void SendTradeRecord(ulong dealTicket) {
    string sessionAtEntry = "?";
    datetime openTime = 0;
    double riskUSD = 0;
+   string agentTag = "ea";
    if (ctxIdx >= 0) {
       side           = openCtx[ctxIdx].side;
       entry          = openCtx[ctxIdx].entry;
@@ -1343,6 +1353,7 @@ void SendTradeRecord(ulong dealTicket) {
       sessionAtEntry = openCtx[ctxIdx].sessionAtEntry;
       openTime       = openCtx[ctxIdx].openTime;
       riskUSD        = openCtx[ctxIdx].riskUSD;
+      agentTag       = openCtx[ctxIdx].agentTag;
    }
 
    // R-multiple = profit / risk_USD
@@ -1355,9 +1366,11 @@ void SendTradeRecord(ulong dealTicket) {
       "\"entry\":%.5f,\"exit\":%.5f,\"profit\":%.2f,\"rMult\":%.3f,"
       "\"outcome\":\"%s\","
       "\"rsiAtEntry\":%.2f,\"bbPosAtEntry\":%.3f,\"sessionAtEntry\":\"%s\","
+      "\"agent\":\"%s\","
       "\"openTime\":%d,\"closeTime\":%d,\"posId\":%I64u}",
       WebhookSecret, sym, side, entry, exit, profit, rMult, outcome,
       rsiAtEntry, bbPosAtEntry, sessionAtEntry,
+      agentTag,
       (int)openTime, (int)closeTime, posId
    );
 

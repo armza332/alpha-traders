@@ -52,6 +52,8 @@ function doPost(e) {
         rsiAtEntry:    data.rsiAtEntry,
         bbPosAtEntry:  data.bbPosAtEntry,
         sessionAtEntry: data.sessionAtEntry,
+        agent:         data.agent,         // Phase 26: which web agent fired it
+
         openTime:  data.openTime,
         closeTime: data.closeTime,
         posId:     data.posId,
@@ -66,7 +68,7 @@ function doPost(e) {
       const base = ['close_all', 'pause', 'resume', 'reset_pnl'];
       const c = String(data.cmd || '');
       const isToggle = /^sym_[1-3]_(on|off)$/.test(c);            // Phase 12.9 per-symbol
-      const isAISig  = /^ai_(buy|sell)_[A-Za-z0-9]+$/.test(c);    // Phase 13 AI signals
+      const isAISig  = /^ai_(buy|sell)_[A-Za-z0-9_]+$/.test(c);   // Phase 13 AI signals (+agent tag suffix)
       if (!base.includes(c) && !isToggle && !isAISig) {
         return json({ ok: false, error: 'Unknown cmd: ' + c });
       }
