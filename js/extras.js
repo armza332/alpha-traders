@@ -3137,10 +3137,12 @@ const Company = {
 
   // Find the winning employee per pair (best approved decision)
   _pairWinners(teamFor, bot) {
+    const solo = (typeof Settings !== 'undefined') ? Settings.get('soloEmployee', '') : '';
     const winners = {};
     ['XAUUSD','AUDUSD','EURUSD'].forEach(sym => {
       let best = null;
       this.EMPLOYEES.forEach(e => {
+        if (solo && e.id !== solo) return;    // 🎯 solo mode: only the chosen employee may fire
         if (e.sym && e.sym !== sym) return;   // pair-locked specialist only competes on its own pair
         const d = this._empDecision(e, sym, teamFor(sym), bot);
         if (d.approved && (!best || d.score > best.score)) best = d;
@@ -3148,6 +3150,20 @@ const Company = {
       winners[sym] = best;
     });
     return winners;
+  },
+  // 🎯 Solo mode — let ONE employee be the only one that fires signals (max discipline).
+  // Pass '' to clear. FirmSniper-only = prop-firm discipline (rare but precise).
+  setSoloEmployee(id) {
+    if (typeof Settings === 'undefined') return;
+    const cur = Settings.get('soloEmployee', '');
+    const next = (cur === id) ? '' : id;     // toggle off if already solo
+    Settings.set('soloEmployee', next);
+    const emp = this.EMPLOYEES.find(e => e.id === next);
+    if (typeof UI !== 'undefined' && UI.addLog) {
+      UI.addLog('CMD', 'Roster', next ? `🎯 โหมดเดี่ยว: เฉพาะ ${emp ? emp.name : next} เท่านั้นที่ยิงสัญญาณ (ปิดที่เหลือ)` : '👥 ปิดโหมดเดี่ยว — พนักงานทุกคนแข่งกันเหมือนเดิม');
+    }
+    alert(next ? `🎯 โหมดเดี่ยว ${emp ? emp.name : next}\n\nตอนนี้เฉพาะ ${emp ? emp.name : next} เท่านั้นที่ส่งสัญญาณ — คนอื่นหยุดเสนอ\n(กดปุ่มซ้ำเพื่อกลับเป็นทีมเต็ม)` : '👥 กลับเป็นทีมเต็มแล้ว — ทุกคนแข่งกันยิงตามปกติ');
+    if (typeof Company !== 'undefined') Company.refresh();
   },
 
   // ── AUDIT LOG (per-employee signal history + outcomes) ──
@@ -3342,10 +3358,14 @@ const Company = {
         style="font-size:8px;padding:3px 10px;border:1px solid ${on?'var(--teal)':'var(--border)'};
                background:${on?'rgba(0,255,200,.15)':'transparent'};color:${on?'var(--teal)':'#9aa'};font-weight:${on?'bold':'normal'}">${m.label}${on?' ●':''}</button>`;
     }).join('');
+    const solo = (typeof Settings !== 'undefined') ? Settings.get('soloEmployee', '') : '';
+    const soloOn = (solo === 'emp_fs');
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;margin-bottom:6px;border:1px dashed #2a3550;border-radius:5px;flex-wrap:wrap">
       <span style="font-size:7px;color:#9aa">โหมดสัญญาณ:</span>${btns}
       <button onclick="Company.pushCombosToEA()" title="ส่ง combo คนเก่งสุดต่อคู่ไป EA (Phase C)" class="btn btn-secondary" style="font-size:8px;padding:3px 8px;border-color:var(--purple);color:#a78bfa">🧬 ส่ง combo → EA</button>
-      <span style="font-size:6px;color:#778;margin-left:auto">EA mode = EA คิดเอง · 🧬 = อัปเดตสูตรคนเก่งสุดให้ EA (GEMINI ส่งให้อัตโนมัติด้วย)</span>
+      <button onclick="Company.setSoloEmployee('emp_fs')" title="ให้ FirmSniper เป็นคนเดียวที่ยิงสัญญาณ (ปิดพนักงานที่เหลือ) — วินัยสุด เหมาะสอบกองทุน" class="btn"
+        style="font-size:8px;padding:3px 9px;border:1px solid ${soloOn?'#36e08f':'var(--border)'};background:${soloOn?'rgba(54,224,143,.15)':'transparent'};color:${soloOn?'#36e08f':'#9aa'};font-weight:${soloOn?'bold':'normal'}">🎯 FirmSniper เดี่ยว${soloOn?' ●':''}</button>
+      <span style="font-size:6px;color:#778;margin-left:auto">${soloOn?'🎯 เฉพาะ FirmSniper ยิง — คนอื่นหยุด':'EA mode = EA คิดเอง · 🧬 = อัปเดตสูตรให้ EA'}</span>
     </div>`;
   },
   // Phase A: auto-measure EA-local vs Web from REAL closed trades (no manual watching)
