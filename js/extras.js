@@ -2154,7 +2154,7 @@ const Office = {
     const desks = Company.EMPLOYEES.map(e => {
       const combo = Company.COMBOS[e.combo] || { icon:'', name:'' };
       let best = null;
-      ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { const d = Company._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
+      ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { if (e.sym && e.sym !== s) return; const d = Company._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const active = winnerOf(e.id);
       const sig = best ? best.signal : 'wait';
       const sigCol = sig === 'buy' ? '#00ff66' : sig === 'sell' ? '#ff4040' : '#5a6a82';
@@ -2827,6 +2827,13 @@ const Company = {
     reversal_sr: { name:'Reversal @ S/R', icon:'🔄', agents:['pivot','rsi','pattern'],        desc:'ราคาถึงแนว S/R + RSI สุดขั้ว + แท่งกลับตัว' },
     wave:        { name:'Wave/Structure', icon:'🌊', agents:['elliott','fib','smc'],          desc:'นับ Elliott + Fib retrace + โครงสร้าง SMC' },
     claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','divergence','smc'], desc:'คัดจากสถิติ KB จริง: MTF คุมเทรนด์หลัก + Divergence (agent เดียวที่บวกทั้ง 3 คู่) + โครงสร้าง SMC — เข้าเฉพาะที่มีหลายปัจจัยยืนยัน เน้นคุณภาพ ตัดขาดทุนไว ปล่อยกำไรวิ่ง ไม่ไล่ราคา' },
+    // ── Phase 26: pair-dedicated combos, each tuned from this account's KB ──
+    xau_meanrev:  { name:'Gold Mean-Rev',  icon:'🥇', agents:['bollinger','divergence','sweep'], desc:'ทอง (ออกข้าง): กลับตัวขอบ BB + Divergence + กวาด liquidity — KB: Gold-BB ranging +44R, Sweep +34R' },
+    xau_liquidity:{ name:'Gold Liquidity', icon:'🥇', agents:['sweep','utbot','divergence'],     desc:'ทอง (เทรนด์): กวาด liquidity + UT-Bot ตามเทรนด์ + Divergence ยืนยัน — KB: Gold-Sweep +34R, UT-Bot +30R' },
+    aud_trend:    { name:'Aussie Trend',   icon:'🇦🇺', agents:['utbot','smc','mtf'],              desc:'AUD เทรนด์: UT-Bot + โครงสร้าง SMC + MTF คุมทิศ — KB: AUD-SMC +23R, UT-Bot +9R' },
+    aud_meanrev:  { name:'Aussie Range',   icon:'🇦🇺', agents:['rsi','divergence','sweep'],       desc:'AUD เป็นคู่ออกข้าง: RSI สุดขั้ว + Divergence + Sweep — KB: AUD-RSI +50R⭐ (ranging +72R) ตัวแรงสุด' },
+    eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['ichimoku','divergence','smc'],    desc:'EUR เป็นคู่เทรนด์: เมฆ Ichimoku + Divergence + SMC — KB: EUR-Ichimoku +46R⭐ Divergence +34R' },
+    eur_structure:{ name:'Euro Structure', icon:'🇪🇺', agents:['ichimoku','smc','orderblock'],    desc:'EUR โครงสร้าง: Ichimoku + SMC + Order Block — KB: EUR-OB volatile-trending +118R' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
@@ -2952,12 +2959,16 @@ const Company = {
   //  see who's actually good.
   // ═══════════════════════════════════════════════════════
   EMPLOYEES: [
-    { id:'emp_mr', combo:'mean_rev',    name:'Mina',   face:{skin:'#f0c8a0',hair:'#caa24a',style:'long', acc:'glasses', accColor:'#ffd700'} },
-    { id:'emp_tr', combo:'trend',       name:'Trent',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'short',acc:'headset', accColor:'#7fff00'} },
-    { id:'emp_sm', combo:'smart_money', name:'Sienna', face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#cd853f'} },
-    { id:'emp_bo', combo:'breakout',    name:'Blaze',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#ff4500'} },
-    { id:'emp_rv', combo:'reversal_sr', name:'Ravi',   face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#9370db'} },
-    { id:'emp_wv', combo:'wave',        name:'Willa',  face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#00e5ff'} },
+    // 🥇 GOLD desk
+    { id:'emp_mr', sym:'XAUUSD', combo:'xau_meanrev',  name:'Mina',   face:{skin:'#f0c8a0',hair:'#caa24a',style:'long', acc:'glasses', accColor:'#ffd700'} },
+    { id:'emp_sm', sym:'XAUUSD', combo:'xau_liquidity',name:'Sienna', face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#ffd700'} },
+    // 🇦🇺 AUD desk
+    { id:'emp_tr', sym:'AUDUSD', combo:'aud_trend',    name:'Trent',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'short',acc:'headset', accColor:'#00ccff'} },
+    { id:'emp_rv', sym:'AUDUSD', combo:'aud_meanrev',  name:'Ravi',   face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#00ccff'} },
+    // 🇪🇺 EUR desk
+    { id:'emp_wv', sym:'EURUSD', combo:'eur_trend',    name:'Willa',  face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#4169e1'} },
+    { id:'emp_bo', sym:'EURUSD', combo:'eur_structure',name:'Blaze',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#4169e1'} },
+    // 🧠 floating elite — competes on every pair
     { id:'emp_cl', combo:'claude_elite',name:'Claude', face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
   ],
 
@@ -3098,6 +3109,7 @@ const Company = {
     ['XAUUSD','AUDUSD','EURUSD'].forEach(sym => {
       let best = null;
       this.EMPLOYEES.forEach(e => {
+        if (e.sym && e.sym !== sym) return;   // pair-locked specialist only competes on its own pair
         const d = this._empDecision(e, sym, teamFor(sym), bot);
         if (d.approved && (!best || d.score > best.score)) best = d;
       });
@@ -3215,7 +3227,7 @@ const Company = {
       const combo = this.COMBOS[e.combo];
       // best decision across pairs (for display)
       let best = null;
-      ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
+      ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { if (e.sym && e.sym !== s) return; const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const st = this._employeeStats(e.id);
       const activePair = winnerOf(e.id);
       const sig = best ? best.signal : 'wait';
