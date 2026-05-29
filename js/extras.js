@@ -2691,7 +2691,7 @@ const Company = {
     rsi:'RSI', bollinger:'Bollinger', fib:'Fib', divergence:'Divergence',
     elliott:'Elliott', macd:'MACD', smc:'SMC', pattern:'Pattern', news:'News',
     ichimoku:'Ichimoku', dxy:'DXY', utbot:'UT-Bot', orderblock:'OrderBlock',
-    sweep:'Sweep', breakout:'Breakout', fvg:'FVG', mtf:'MTF',
+    sweep:'Sweep', breakout:'Breakout', fvg:'FVG', mtf:'MTF', sniper:'FirmSniper',
   },
   roster: [
     // XAU — gold desk
@@ -2760,7 +2760,7 @@ const Company = {
   },
   _SETKEY: { orderblock:'OrderBlock', fvg:'FVG', sweep:'Sweep', utbot:'UTBot', rsi:'RSI',
     bollinger:'Bollinger', fib:'Fib', divergence:'Divergence', macd:'MACD', breakout:'Breakout',
-    ichimoku:'Ichimoku', elliott:'Elliott', smc:'SMC', pattern:'Pattern', mtf:'MTF', dxy:'DXY', news:'News' },
+    ichimoku:'Ichimoku', elliott:'Elliott', smc:'SMC', pattern:'Pattern', mtf:'MTF', dxy:'DXY', news:'News', sniper:'FirmSniper' },
   applyPreset(key) {
     const p = this.PRESETS[key];
     if (!p || typeof Settings === 'undefined') return;
@@ -2846,6 +2846,8 @@ const Company = {
     eur_structure:{ name:'Euro Momentum',  icon:'🇪🇺', agents:['utbot','sweep','mtf'],           desc:'EUR โมเมนตัม: UT-Bot + Sweep + MTF — KB ใหม่: UTBot +66R, Sweep เด่นตอน trending (+55R)' },
     // ── BlackGlacier: elite gold specialist — 4-factor confluence, max discipline ──
     blackglacier: { name:'BlackGlacier Gold', icon:'🧊', agents:['mtf','ichimoku','orderblock','sweep'], desc:'ทองระดับกองทุน: MTF คุมเทรนด์ + Ichimoku เมฆ/regime + Order Block โซนสถาบัน + Sweep กวาด liquidity — ยืนยัน 4 ชั้น เข้าน้อยมากแต่แม่น มีวินัยสุด ไม่ออกซิกมั่ว' },
+    // ── FirmSniper: prop-firm challenge specialist — hard-filter 5-layer confluence (single mega-agent) ──
+    firm_sniper:  { name:'Firm Sniper', icon:'🎯', agents:['sniper'], desc:'พนักงานสอบกองทุน: hard filter 5 ชั้นพร้อมกัน — (1)ไม่มีข่าวแรง (2)Liquidity Sweep (3)โซน Discount/Premium (4)Order Block+FVG (5)Macro DXY ไม่สวน → ยิงเฉพาะ confluence เต็ม conf 95 ออกน้อยมาก winrate สูง drawdown ต่ำ เหมาะผ่าน challenge (ดีสุดในโหมด WEB/BOTH เพราะใช้ DXY+ข่าว)' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
@@ -2983,6 +2985,8 @@ const Company = {
     { id:'emp_bo', sym:'EURUSD', combo:'eur_structure',name:'Blaze',  sprite:[2,0], face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#4169e1'} },
     // 🧠 floating elite — competes on every pair
     { id:'emp_cl', combo:'claude_elite',name:'Claude', sprite:[0,0], face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
+    // 🎯 prop-firm specialist — floating elite, hard-filter sniper (takes any FX pair on perfect confluence)
+    { id:'emp_fs', combo:'firm_sniper', name:'FirmSniper', sprite:[5,0], face:{skin:'#d8b48c',hair:'#14181f',style:'short',acc:'glasses', accColor:'#36e08f'} },
   ],
 
   // PHASE 25.1: beep when an employee fires (buy = rising, sell = falling)
@@ -3028,7 +3032,7 @@ const Company = {
       ce.forEach(e => { if (!this.EMPLOYEES.find(x => x.id === e.id)) this.EMPLOYEES.push(e); });
     } catch {}
   },
-  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl','emp_bg'],
+  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl','emp_bg','emp_fs'],
   addCombo() {
     const avail = Object.keys(this._KEYMAP).filter(k => k !== 'mtf');
     const name = prompt('ชื่อคอมโบใหม่ (เช่น "Gold Scalp X"):'); if (!name) return;
@@ -3761,7 +3765,7 @@ const Company = {
   ROOM_POS: {
     emp_mr: { x:16, y:62 }, emp_sm: { x:38, y:74 }, emp_tr: { x:55, y:54 },
     emp_rv: { x:69, y:40 }, emp_wv: { x:82, y:50 }, emp_bo: { x:90, y:63 },
-    emp_cl: { x:47, y:88 },
+    emp_cl: { x:47, y:88 }, emp_fs: { x:28, y:90 }, emp_bg: { x:24, y:46 },
   },
   renderPixelRoom() {
     const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX;

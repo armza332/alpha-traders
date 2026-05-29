@@ -214,6 +214,93 @@ class FVGAgent extends BaseAgent {
 }
 
 /* ═══════════════════════════════════════════════════════
+   🎯 FIRM SNIPER — Prop-Firm SMC Confluence (HARD FILTER)
+   ทุกเงื่อนไขต้องผ่านพร้อมกัน 5 ชั้น ถึงจะยิง (conf 95)
+   1) News clear  2) Liquidity Sweep  3) Discount/Premium
+   4) OB + FVG trigger  5) Macro DXY ไม่สวน
+   ออกแบบมาเพื่อ "สอบกองทุน": ออกน้อย แม่นสูง drawdown ต่ำ
+   ═══════════════════════════════════════════════════════ */
+class PropFirmSniperAgent extends BaseAgent {
+  constructor(team, newsPairs) {
+    super('FirmSniper', 'Prop-Firm SMC Confluence (hard filter)', '🎯', team);
+    this._news = new NewsAgent(team, newsPairs || ['USD']);
+  }
+
+  analyze(data) {
+    const { candles, cfg } = data;
+    const d = (cfg?.digits || 2) - 1;
+    const blank = (reason) => ({ signal:'wait', conf:30, report:{ verdict:'⛔ '+reason }, log:'FirmSniper wait: '+reason });
+    if (!candles || candles.length < 55) return blank('ข้อมูลไม่พอ (<55 แท่ง)');
+
+    const last  = candles.at(-1);
+    const price = last.close;
+
+    // ── ชั้น 1: NEWS — งดเทรดถ้ามีข่าวแรงในกรอบเวลา (NewsAgent คืน 'watch' เมื่อ HIGH risk) ──
+    const news        = this._news.analyze();
+    const newsBlocked = news.signal === 'watch';
+
+    // ── ชั้น 2: LIQUIDITY SWEEP — กวาด swing 20 แท่งแล้วเด้งกลับ ──
+    const look    = candles.slice(-20, -1);
+    const swingHi = Math.max(...look.map(c => c.high));
+    const swingLo = Math.min(...look.map(c => c.low));
+    const bullSweep = last.low  < swingLo && last.close > swingLo;   // กวาด low → เด้งขึ้น
+    const bearSweep = last.high > swingHi && last.close < swingHi;   // กวาด high → ลง
+
+    // ── ชั้น 3: PREMIUM / DISCOUNT — ตำแหน่งใน range 50 แท่ง ──
+    const range = candles.slice(-50);
+    const hi = Math.max(...range.map(c => c.high));
+    const lo = Math.min(...range.map(c => c.low));
+    const rangePos   = (hi > lo) ? (price - lo) / (hi - lo) : 0.5;   // 0=ถูก 1=แพง
+    const isDiscount = rangePos <= 0.40;
+    const isPremium  = rangePos >= 0.60;
+
+    // ── ชั้น 4: ENTRY TRIGGER — Order Block + Fair Value Gap ──
+    const obs  = TA.orderBlocks(candles);
+    const fvgs = TA.fvg(candles);
+    const nearBullOB = obs.filter(o => o.type==='bull' && price >= o.bot*0.999 && price <= o.top*1.02).at(-1) || null;
+    const nearBearOB = obs.filter(o => o.type==='bear' && price <= o.top*1.001 && price >= o.bot*0.98).at(-1) || null;
+    const hasBullFVG = fvgs.some(f => f.type==='bull' && (!nearBullOB || f.bot <= nearBullOB.top));
+    const hasBearFVG = fvgs.some(f => f.type==='bear' && (!nearBearOB || f.top >= nearBearOB.bot));
+
+    // ── ชั้น 5: MACRO DXY — USD อ่อน(≤0)→buy, USD แข็ง(≥0)→sell (อ่านจาก global) ──
+    const dxyTrend = (typeof TradingWarRoom !== 'undefined' && TradingWarRoom.market)
+                       ? (TradingWarRoom.market.dxyTrend ?? 0) : 0;
+    const dxyOkBuy  = dxyTrend <= 0;
+    const dxyOkSell = dxyTrend >= 0;
+
+    // ── HARD FILTER: ทุกชั้นต้องผ่านพร้อมกัน ──
+    const buyConfluence  = !newsBlocked && bullSweep && isDiscount && !!nearBullOB && hasBullFVG && dxyOkBuy;
+    const sellConfluence = !newsBlocked && bearSweep && isPremium  && !!nearBearOB && hasBearFVG && dxyOkSell;
+
+    // นับชั้นที่ผ่าน (สำหรับสถานะ 'watch' = กำลังจ่อ)
+    const buyHits  = [bullSweep, isDiscount, !!nearBullOB, hasBullFVG, dxyOkBuy ].filter(Boolean).length;
+    const sellHits = [bearSweep, isPremium,  !!nearBearOB, hasBearFVG, dxyOkSell].filter(Boolean).length;
+
+    let signal='wait', conf=30, verdict='— รอ setup ครบ 5 ชั้น';
+    if (buyConfluence)        { signal='buy';  conf=95; verdict='🟢 SNIPE BUY — confluence เต็ม 5/5'; }
+    else if (sellConfluence)  { signal='sell'; conf=95; verdict='🔴 SNIPE SELL — confluence เต็ม 5/5'; }
+    else if (newsBlocked)     { signal='wait'; conf=25; verdict='⛔ งดเทรด — มีข่าวแรง (risk HIGH)'; }
+    else if (buyHits>=4 && buyHits>=sellHits)  { signal='watch'; conf=45; verdict=`🔭 จ่อยิง BUY (${buyHits}/5)`; }
+    else if (sellHits>=4)     { signal='watch'; conf=45; verdict=`🔭 จ่อยิง SELL (${sellHits}/5)`; }
+
+    this.signal = signal; this.conf = conf;
+    this.report = {
+      verdict,
+      news:  newsBlocked ? '⛔ HIGH risk — งด' : '✓ clear',
+      sweep: bullSweep ? '🟢 bull sweep' : bearSweep ? '🔴 bear sweep' : '— ไม่มี',
+      zone:  `${(rangePos*100).toFixed(0)}% ${isDiscount?'DISCOUNT 🟢':isPremium?'PREMIUM 🔴':'EQ ⚪'}`,
+      entry: nearBullOB ? `bull OB @${nearBullOB.origin.toFixed(d)}${hasBullFVG?' +FVG✓':' (รอ FVG)'}`
+           : nearBearOB ? `bear OB @${nearBearOB.origin.toFixed(d)}${hasBearFVG?' +FVG✓':' (รอ FVG)'}`
+           : '— ราคายังไม่เข้า OB',
+      dxy:   dxyTrend>0?`▲ USD แข็ง (${dxyTrend.toFixed(2)})`:dxyTrend<0?`▼ USD อ่อน (${dxyTrend.toFixed(2)})`:'↔ flat',
+      confluence: `BUY ${buyHits}/5 · SELL ${sellHits}/5`,
+    };
+    this.lastLog = `FirmSniper ${signal} | ${verdict}`;
+    return { signal:this.signal, conf:this.conf, report:this.report, log:this.lastLog };
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    ELLIOTT WAVE ANALYST
    ═══════════════════════════════════════════════════════ */
 class ElliottWaveAgent extends BaseAgent {
@@ -1294,6 +1381,7 @@ class GoldTeam {
     this.breakout   = new BreakoutAgent('GOLD');     // Phase 19
     this.fvg        = new FVGAgent('GOLD');          // Phase 19.1
     this.news       = new NewsAgent('GOLD', ['XAU', 'USD']);
+    this.sniper     = new PropFirmSniperAgent('GOLD', ['XAU', 'USD']);  // 🎯 Prop-firm hard filter
   }
 
   _on(key, def = true) {
@@ -1335,6 +1423,7 @@ class GoldTeam {
     if (this._on('enableBreakout',  true)) { agents.breakout  = wt(this.breakout.analyze(data),  'Gold-Breakout');  reports.push(agents.breakout); }
     if (this._on('enableFVG',       true)) { agents.fvg       = wt(this.fvg.analyze(data),       'Gold-FVG');       reports.push(agents.fvg); }
     if (this._on('enableNews',      true)) { agents.news      = wt(this.news.analyze(),          'Gold-News');      reports.push(agents.news); }
+    if (this._on('enableSniper',    true)) { agents.sniper    = wt(this.sniper.analyze(data),    'Gold-FirmSniper'); reports.push(agents.sniper); }
 
     const agg = this.head.aggregate(reports);
 
@@ -1378,6 +1467,7 @@ class CurrencyTeam {
       sweep:      new SweepAgent('AUDUSD'),
       breakout:   new BreakoutAgent('AUDUSD'),
       fvg:        new FVGAgent('AUDUSD'),          // Phase 19.1
+      sniper:     new PropFirmSniperAgent('AUDUSD', ['AUD', 'USD']),  // 🎯 Prop-firm hard filter
     };
 
     // EURUSD sub-analysts
@@ -1400,6 +1490,7 @@ class CurrencyTeam {
       sweep:      new SweepAgent('EURUSD'),
       breakout:   new BreakoutAgent('EURUSD'),
       fvg:        new FVGAgent('EURUSD'),          // Phase 19.1
+      sniper:     new PropFirmSniperAgent('EURUSD', ['EUR', 'USD']),  // 🎯 Prop-firm hard filter
     };
 
     this.news    = new NewsAgent('CURRENCY', ['AUD', 'EUR', 'USD']);
@@ -1451,6 +1542,7 @@ class CurrencyTeam {
     if (this._on('enableSweep',     true)) { agents.sweep     = wt(pair.sweep.analyze(data),     'Sweep');     reports.push(agents.sweep); }
     if (this._on('enableBreakout',  true)) { agents.breakout  = wt(pair.breakout.analyze(data),  'Breakout');  reports.push(agents.breakout); }
     if (this._on('enableFVG',       true)) { agents.fvg       = wt(pair.fvg.analyze(data),       'FVG');       reports.push(agents.fvg); }
+    if (this._on('enableSniper',    true)) { agents.sniper    = wt(pair.sniper.analyze(data),    'FirmSniper'); reports.push(agents.sniper); }
     return { agents, agg: pair.head.aggregate(reports) };
   }
 
