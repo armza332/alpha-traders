@@ -1323,7 +1323,10 @@ AgentOut AgentUTBot(string sym, ENUM_TIMEFRAMES tf) {
    bool crossDown = (prev >= stop && last < stop);
    bool above = (last > stop);
    int score = crossUp ? 30 : crossDown ? -30 : above ? 12 : -12;
-   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   // Phase A.1: always directional from the trend bias (above=buy / below=sell);
+   // conf is high on a FRESH cross (~89) and lower while just holding (~65),
+   // so EvaluateLocalCombo can fire on a strong cross alone OR trend+divergence.
+   o.dir  = above ? 1 : -1;
    o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.3);
    return o;
 }
@@ -1371,7 +1374,8 @@ AgentOut AgentDivergence(string sym, ENUM_TIMEFRAMES tf, int idx) {
    if (shMaxP > fhMaxP*1.002 && shMaxH < fhMaxH-0.01) score -= 20;   // bear MACD div
    if (shMinP > fhMinP*1.002 && shMinR < fhMinR-2)    score += 10;   // hidden bull
    if (shMaxP < fhMaxP*0.998 && shMaxR > fhMaxR+2)    score -= 10;   // hidden bear
-   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   // Phase A.1: directional at score ≥10 (was 20) so divergence confirms more often
+   o.dir  = score >= 10 ? 1 : score <= -10 ? -1 : 0;
    o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.0);
    return o;
 }
@@ -1386,8 +1390,13 @@ void EvaluateLocalCombo(string sym, int idx) {
 
    AgentOut ut = AgentUTBot(sym, effTF);
    AgentOut dv = AgentDivergence(sym, effTF, idx);
-   if (ut.dir == 0 || dv.dir == 0 || ut.dir != dv.dir) return;   // need agreement
-   double conf = (ut.conf + dv.conf) / 2.0;
+   if (ut.dir == 0) return;
+   // Phase A.1: fire on EITHER a fresh UT-Bot cross (strong trend trigger, conf≥85)
+   // OR trend + Divergence agreeing. Avoids the old "both rare events must coincide".
+   bool freshCross = (ut.conf >= 85);
+   bool divAgrees  = (dv.dir != 0 && dv.dir == ut.dir);
+   if (!freshCross && !divAgrees) return;
+   double conf = divAgrees ? MathMax(ut.conf, dv.conf) : ut.conf;
    if (conf < LocalMinConf) return;
 
    bool isBuy = (ut.dir > 0);
