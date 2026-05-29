@@ -86,6 +86,13 @@ const Backtest = {
       const tpM = TP_MULT[mode] || 1.5;
       const slM = SL_MULT[mode] || 1.5;
       const rrFactor = 1.6;
+      // Phase 26: REALISTIC COST MODEL — every trade pays the spread (+slippage).
+      // Expressed in R (fraction of SL distance) and subtracted from each result,
+      // so the backtest stops over-stating thin-edge scalp setups (esp. gold).
+      const SPREAD_EST = { XAUUSD: 0.30, AUDUSD: 0.00018, EURUSD: 0.00012 };
+      const spreadPx = (typeof Settings !== 'undefined')
+        ? Settings.get('btSpread_' + symbol, SPREAD_EST[symbol] || 0.0002)
+        : (SPREAD_EST[symbol] || 0.0002);
 
       const trades = [];
       const equityCurve = [];
@@ -104,21 +111,23 @@ const Backtest = {
           const isLong = openTrade.signal === 'buy';
           const hitSL = isLong ? c.low  <= openTrade.sl : c.high >= openTrade.sl;
           const hitTP = isLong ? c.high >= openTrade.tp : c.low  <= openTrade.tp;
+          const slDist = Math.abs(openTrade.entry - openTrade.sl) || 1e-9;
+          const costR  = spreadPx / slDist;   // spread cost charged to every trade, in R
 
           if (hitSL && hitTP) {
             // ทั้งสองชนกัน → assume SL ก่อน (conservative)
             openTrade.exit = openTrade.sl;
             openTrade.outcome = 'loss';
-            openTrade.r = -1;
+            openTrade.r = -1 - costR;
             openTrade.exitIdx = i;
           } else if (hitSL) {
             openTrade.exit = openTrade.sl;
             openTrade.outcome = 'loss';
-            openTrade.r = -1;
+            openTrade.r = -1 - costR;
           } else if (hitTP) {
             openTrade.exit = openTrade.tp;
             openTrade.outcome = 'win';
-            openTrade.r = +rrFactor;
+            openTrade.r = +rrFactor - costR;
             openTrade.exitIdx = i;
           }
 
