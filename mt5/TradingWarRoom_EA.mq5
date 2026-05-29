@@ -1380,34 +1380,106 @@ AgentOut AgentDivergence(string sym, ENUM_TIMEFRAMES tf, int idx) {
    return o;
 }
 
-// EA-local combo: UT-Bot + Divergence must AGREE → fire. Commander (web) still
-// controls via runEnabled[] / eaPaused / portfolio-risk / cooldown.
+// ── Phase B: RSI value agent (mean-reversion w/ trend context, mirror of web) ──
+AgentOut AgentRSI(string sym, ENUM_TIMEFRAMES tf, int idx) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   double rb[]; ArraySetAsSeries(rb, true);
+   if (CopyBuffer(rsiHandle[idx], 0, 1, 1, rb) != 1) return o;
+   double rsi = rb[0];
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 60, r) < 55) return o;
+   double sma = 0; for (int i = 0; i < 50; i++) sma += r[i].close; sma /= 50;
+   bool bull = r[0].close > sma, bear = r[0].close < sma;
+   int hA = iADX(sym, tf, 14); double adxv = 20;
+   if (hA != INVALID_HANDLE) { double a[]; ArraySetAsSeries(a, true); if (CopyBuffer(hA, 0, 1, 1, a) == 1) adxv = a[0]; IndicatorRelease(hA); }
+   bool trending = (adxv >= 22);
+   int score = 0;
+   if (rsi <= 30 && bull) score += 35;     // oversold in uptrend → buy the dip
+   if (rsi >= 70 && bear) score -= 35;     // overbought in downtrend → sell
+   if (rsi >= 40 && rsi <= 60 && trending) score += (bull ? 10 : bear ? -10 : 0);
+   o.dir  = score >= 25 ? 1 : score <= -25 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.45);
+   return o;
+}
+
+// ── Phase B: MTF trend alignment (H1 + H4 + D1, mirror of web MTFAgent) ──
+AgentOut AgentMTF(string sym) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   ENUM_TIMEFRAMES tfs[3]; tfs[0] = PERIOD_H1; tfs[1] = PERIOD_H4; tfs[2] = PERIOD_D1;
+   int bulls = 0, bears = 0, total = 0; bool dayBull = false, dayBear = false;
+   for (int t = 0; t < 3; t++) {
+      MqlRates r[]; ArraySetAsSeries(r, true);
+      if (CopyRates(sym, tfs[t], 1, 55, r) < 50) continue;
+      double sma = 0; for (int i = 0; i < 50; i++) sma += r[i].close; sma /= 50;
+      bool bull = r[0].close > sma;
+      if (bull) bulls++; else bears++;
+      total++;
+      if (t == 2) { dayBull = bull; dayBear = !bull; }
+   }
+   if (total == 0) return o;
+   int score = 0;
+   if (bulls == total)      score = 40;
+   else if (bears == total) score = -40;
+   else if (bulls > bears)  score = 15;
+   else if (bears > bulls)  score = -15;
+   if (total >= 2) { if (dayBull && bulls >= bears) score += 5; if (dayBear && bears >= bulls) score -= 5; }
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score));
+   return o;
+}
+
+// Dispatch an agent by key. Batch-2 agents (smc/orderblock/ichimoku/sweep) return
+// neutral (dir 0) until ported — combos needing them simply get fewer voters.
+AgentOut AgentByKey(string key, string sym, ENUM_TIMEFRAMES tf, int idx) {
+   if (key == "utbot")      return AgentUTBot(sym, tf);
+   if (key == "divergence") return AgentDivergence(sym, tf, idx);
+   if (key == "rsi")        return AgentRSI(sym, tf, idx);
+   if (key == "mtf")        return AgentMTF(sym);
+   AgentOut o; o.dir = 0; o.conf = 0; return o;   // not yet ported
+}
+
+// Per-symbol combo = the pair's KB-best agents (mirror of web pair combos).
+void GetComboKeys(string sym, string &keys[]) {
+   string b = StringSubstr(sym, 0, 6); StringToUpper(b);
+   if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="divergence"; keys[2]="utbot"; }   // Aussie Power
+   else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }   // Euro Trend
+   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="orderblock"; keys[2]="ichimoku"; } // Gold Range (Batch 2)
+   else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }
+}
+
+// EA-local combo (Phase B): aggregate the symbol's combo agents. Fire only on
+// CONFLUENCE — ≥2 agents agree on direction AND none oppose — avg conf ≥ LocalMinConf.
+// Commander (web) still controls via runEnabled[] / eaPaused / risk / cooldown.
 void EvaluateLocalCombo(string sym, int idx) {
    if (eaPaused) return;
    if (CountPositions(sym) >= effMaxPos) return;
    if (PortfolioRiskPct() >= MaxPortfolioRiskPct) return;
    if (TimeCurrent() - lastSignalTime[idx] < effCooldownMin * 60) return;
 
-   AgentOut ut = AgentUTBot(sym, effTF);
-   AgentOut dv = AgentDivergence(sym, effTF, idx);
-   if (ut.dir == 0) return;
-   // Phase A.2: QUALITY mode — require 2-factor confluence: UT-Bot trend AND
-   // Divergence must agree (no firing on a 1-factor trend cross alone). Fires
-   // less often but each entry is confirmed. LocalMinConf is the quality dial:
-   // higher = fewer/better. A fresh cross (ut.conf≈89) + divergence easily clears it.
-   bool divAgrees = (dv.dir != 0 && dv.dir == ut.dir);
-   if (!divAgrees) return;
-   double conf = MathMax(ut.conf, dv.conf);
+   string keys[]; GetComboKeys(sym, keys);
+   int votesBuy = 0, votesSell = 0; double confSum = 0; string detail = "";
+   for (int k = 0; k < ArraySize(keys); k++) {
+      AgentOut a = AgentByKey(keys[k], sym, effTF, idx);
+      if (a.dir == 0) continue;
+      if (a.dir > 0) votesBuy++; else votesSell++;
+      confSum += a.conf;
+      detail += keys[k] + (a.dir > 0 ? "+ " : "- ");
+   }
+   int net = 0, agree = 0;
+   if (votesBuy >= 2 && votesSell == 0)      { net = 1;  agree = votesBuy; }
+   else if (votesSell >= 2 && votesBuy == 0) { net = -1; agree = votesSell; }
+   else return;                               // need ≥2 agree + no opposition (confluence)
+   double conf = confSum / agree;
    if (conf < LocalMinConf) return;
 
-   bool isBuy = (ut.dir > 0);
+   bool isBuy = (net > 0);
    double atrArr[], rsiArr[];
    ArraySetAsSeries(atrArr, true); ArraySetAsSeries(rsiArr, true);
    if (CopyBuffer(atrHandle[idx], 0, 0, 1, atrArr) != 1) return;
    if (CopyBuffer(rsiHandle[idx], 0, 0, 1, rsiArr) != 1) return;
 
-   PrintFormat("⚡ LOCAL COMBO %s %s | UT-Bot + Divergence agree | conf %.0f",
-               sym, isBuy ? "BUY" : "SELL", conf);
+   PrintFormat("⚡ LOCAL COMBO %s %s | %d agents agree [%s] conf %.0f",
+               sym, isBuy ? "BUY" : "SELL", agree, detail, conf);
    ExecuteTrade(sym, idx, isBuy, atrArr[0], rsiArr[0], "local");
    lastSignalTime[idx] = TimeCurrent();
 }
