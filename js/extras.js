@@ -3379,13 +3379,13 @@ const Company = {
       emps.forEach(e => { const st = this._employeeStats(e.id); if (st.R > bestR) { bestR = st.R; best = e; } });
       const combo = this.COMBOS[best.combo];
       if (!combo || !combo.agents) return;
-      BotBridge.sendCommand('combo_' + sym + '_' + combo.agents.join('.'));
+      BotBridge.sendCommand('combo_' + sym + '_' + combo.agents.join('.'), { silent: true });
       lines.push(`${sym.replace('USD', '')}→${best.name}(${combo.name})`);
     });
     if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')}`);
   },
   setSignalMode(m) {
-    if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('mode_' + m);
+    if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('mode_' + m, { silent: true });
     if (typeof Settings !== 'undefined') Settings.set('signalMode', m);
     if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Mode', `🔀 สลับโหมดสัญญาณ → ${m.toUpperCase()} (ส่งคำสั่งไป EA แล้ว)`);
     if (typeof Company !== 'undefined') Company.refresh();
