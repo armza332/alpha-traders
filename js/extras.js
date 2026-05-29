@@ -3671,6 +3671,10 @@ const Company = {
     const fx   = TradingWarRoom?.lastFX;
     const autoPilot = Settings.get('autoPilot', false);
     return `
+      <div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:10px;border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.5)">
+        <img src="assets/room-bg.png?v=39" alt="Alpha Traders Floor" style="width:100%;display:block;image-rendering:pixelated">
+        <div style="position:absolute;left:12px;bottom:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Trading Floor</div>
+      </div>
       ${autoPilot ? `<div style="padding:8px 12px;background:rgba(0,255,65,0.1);border:1px solid var(--green);margin-bottom:10px;font-size:9px;color:var(--green)">
         🤖 <b>AUTO PILOT ON</b> — ทีมตัดสินใจเอง 100% · Grade A+ → EA ทันที
       </div>` : ''}
