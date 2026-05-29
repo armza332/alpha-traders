@@ -88,7 +88,7 @@ function doPost(e) {
 
     // ── Phase 12.4 + 12.9 + 13: Web → EA command enqueue ──
     if (data.type === 'cmd') {
-      const base = ['close_all', 'pause', 'resume', 'reset_pnl'];
+      const base = ['close_all', 'pause', 'resume', 'reset_pnl', 'mode_web', 'mode_ea', 'mode_both'];
       const c = String(data.cmd || '');
       const isToggle = /^sym_[1-3]_(on|off)$/.test(c);            // Phase 12.9 per-symbol
       const isAISig  = /^ai_(buy|sell)_[A-Za-z0-9_]+$/.test(c);   // Phase 13 AI signals (+agent tag suffix)

@@ -85,9 +85,10 @@ input bool    AcceptWebSignals   = false;         // 🧠 Phase 13: Accept AI tr
 input bool    OnlyWebSignals     = false;         // 🎯 Phase 21.7: trade ONLY web signals (disable EA's own RSI+BB+Fib entries)
 input int     MaxSignalAgeSec    = 90;            // 🕐 Phase 26: drop web AI signals older than this (anti-stale; 0 = off)
 
-input group "=== PHASE A: EA-LOCAL AGENTS (fast on-bar firing) ==="
-input bool    UseLocalAgents     = false;         // ⚡ EA computes UT-Bot + Divergence itself (no web round-trip)
-input double  LocalMinConf       = 70;            // Min combined confidence (UT-Bot + Divergence) to fire
+input group "=== SIGNAL MODE (Phase A) ==="
+enum ENUM_SIG_MODE { SIG_WEB=0, SIG_EA=1, SIG_BOTH=2 };
+input ENUM_SIG_MODE SignalMode   = SIG_WEB;       // 🔀 WEB=สัญญาณจากเว็บ · EA=EA คิดเอง · BOTH=ทั้งคู่ (เปลี่ยนจากเว็บได้)
+input double  LocalMinConf       = 70;            // EA-local: min combined conf (UT-Bot + Divergence) to fire
 
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
@@ -112,6 +113,7 @@ datetime      lastWebPush = 0;
 datetime      lastCmdPoll = 0;
 int           lastCmdId   = 0;       // last processed command ID
 bool          eaPaused    = false;   // Phase 12.4: remote pause flag
+int           gSignalMode = 0;       // Phase A: 0=WEB 1=EA 2=BOTH (runtime; web can change)
 int           rsiHandle[MAX_SYMS], bbHandle[MAX_SYMS], atrHandle[MAX_SYMS];
 string        symbols[MAX_SYMS];
 int           nActiveSyms = 0;       // dynamically counted in OnInit
@@ -167,6 +169,7 @@ struct AgentOut { int dir; double conf; };
 //═══════════════════ ON INIT ════════════════════════════════════════
 int OnInit() {
    ApplyMode();              // Phase 12.7: set effective TF + thresholds
+   gSignalMode = (int)SignalMode;   // Phase A: init runtime signal mode from input
 
    trade.SetExpertMagicNumber(MagicNumber);
    trade.SetDeviationInPoints(30);
@@ -277,7 +280,7 @@ void OnTick() {
    for (int i = 0; i < nActiveSyms; i++) {
       if (!runEnabled[i]) continue;   // Phase 12.9: skip if disabled from web
       CheckSignal(symbols[i], i);                          // updates dashboard scan
-      if (UseLocalAgents) EvaluateLocalCombo(symbols[i], i);  // Phase A: EA fires its own combo (fast)
+      if (gSignalMode == 1 || gSignalMode == 2) EvaluateLocalCombo(symbols[i], i);  // EA/BOTH: fire local combo
    }
 }
 
@@ -905,8 +908,9 @@ void UpdateDashboard() {
    string trade_status = eaPaused ? "▮▮ PAUSED" : "▶ TRADING";
    color  tradeClr  = eaPaused ? C'255,140,0' : C'0,255,100';
 
+   string modeStr = (gSignalMode == 1) ? "⚡EA" : (gSignalMode == 2) ? "🔀BOTH" : "🌐WEB";
    DashLabel("SYS_LINE1", DASH_X+16, y+22,
-             StringFormat("%s    %s", trade_status, webStatus),
+             StringFormat("%s   %s   MODE:%s", trade_status, webStatus, modeStr),
              tradeClr, 8);
    double portRiskNow = PortfolioRiskPct();
    color portClr = portRiskNow >= MaxPortfolioRiskPct ? C'255,80,80'
@@ -1007,6 +1011,7 @@ void PushToWeb() {
       "\"symEnabled\":%s,"
       "\"portfolioRisk\":%.2f,\"maxPortfolioRisk\":%.1f,"
       "\"mode\":\"%s\","
+      "\"signalMode\":\"%s\","
       "\"paused\":%s,"
       "\"prices\":%s,"
       "\"positions\":[%s]}",
@@ -1021,6 +1026,7 @@ void PushToWeb() {
       enabledJson,
       PortfolioRiskPct(), MaxPortfolioRiskPct,
       (ScalpMode ? "scalp" : "swing"),
+      (gSignalMode == 1 ? "ea" : gSignalMode == 2 ? "both" : "web"),
       (eaPaused ? "true" : "false"),
       pxJson,
       posJson
@@ -1188,6 +1194,10 @@ void ExecuteCommand(string cmd, int ageSec) {
       pnlToday = 0;
       Print("🔄 REMOTE: Today stats reset");
    }
+   // Phase A: switch signal mode from the web (Commander)
+   else if (cmd == "mode_web")  { gSignalMode = 0; Print("🌐 REMOTE: signal mode → WEB"); }
+   else if (cmd == "mode_ea")   { gSignalMode = 1; Print("⚡ REMOTE: signal mode → EA (local)"); }
+   else if (cmd == "mode_both") { gSignalMode = 2; Print("🔀 REMOTE: signal mode → BOTH"); }
    // Phase 12.9: per-symbol enable/disable
    else if (StringFind(cmd, "sym_") == 0) {
       // Format: sym_1_on / sym_1_off / sym_2_on / ...
@@ -1200,6 +1210,7 @@ void ExecuteCommand(string cmd, int ageSec) {
    }
    // Phase 13: AI signal from web — format ai_buy_<SYM> or ai_sell_<SYM>
    else if (StringFind(cmd, "ai_buy_") == 0 || StringFind(cmd, "ai_sell_") == 0) {
+      if (gSignalMode == 1) { Print("⚡ EA mode — ignoring web AI signal (EA trades locally)"); return; }
       if (!AcceptWebSignals) { Print("🚫 AI signal received but AcceptWebSignals=false"); return; }
       if (eaPaused)          { Print("⏸ EA paused — ignoring AI signal"); return; }
       // Fail-OPEN on clock skew: only drop when age is inside a believable

@@ -3312,10 +3312,38 @@ const Company = {
         <button onclick="Company.addCombo()" class="btn btn-secondary" style="font-size:7px;padding:2px 8px;margin-left:4px">+ จ้างพนักงาน/คอมโบใหม่</button>
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>
+      ${this._modeBar()}
       <div style="font-size:7px;padding:4px 6px;background:rgba(0,255,200,0.05);border:1px solid var(--teal);border-radius:5px;margin-bottom:6px">🎯 รอบนี้ใครได้คุม: ${wBanner}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${cards}</div>
       <div style="font-size:6px;color:#778;margin-top:4px">⭐ = เรตติ้งจากผลจริง (ต้อง ≥3 ไม้ถึงให้ดาว) · ออกซิก = จำนวนครั้งที่ยิง · W/L/R = ผลที่จับคู่กับไม้จริงได้</div>
     </div>`;
+  },
+
+  // Phase A: signal-mode selector (sends mode_web/ea/both command to the EA)
+  _modeBar() {
+    const cur = (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.signalMode)
+              || (typeof Settings !== 'undefined' ? Settings.get('signalMode', 'web') : 'web');
+    const modes = [
+      { k:'web',  label:'🌐 WEB',  desc:'สัญญาณจากเว็บ (agent บนเว็บ → EA)' },
+      { k:'ea',   label:'⚡ EA',   desc:'EA คิดเอง (UT-Bot+Divergence) เร็วสุด' },
+      { k:'both', label:'🔀 BOTH', desc:'ทั้งเว็บ + EA' },
+    ];
+    const btns = modes.map(m => {
+      const on = (cur === m.k);
+      return `<button onclick="Company.setSignalMode('${m.k}')" title="${m.desc}" class="btn"
+        style="font-size:8px;padding:3px 10px;border:1px solid ${on?'var(--teal)':'var(--border)'};
+               background:${on?'rgba(0,255,200,.15)':'transparent'};color:${on?'var(--teal)':'#9aa'};font-weight:${on?'bold':'normal'}">${m.label}${on?' ●':''}</button>`;
+    }).join('');
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;margin-bottom:6px;border:1px dashed #2a3550;border-radius:5px">
+      <span style="font-size:7px;color:#9aa">โหมดสัญญาณ:</span>${btns}
+      <span style="font-size:6px;color:#778;margin-left:auto">EA ต้องเปิด AcceptWebSignals/รองรับโหมด · ส่งคำสั่งสลับไป EA ทันที</span>
+    </div>`;
+  },
+  setSignalMode(m) {
+    if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('mode_' + m);
+    if (typeof Settings !== 'undefined') Settings.set('signalMode', m);
+    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Mode', `🔀 สลับโหมดสัญญาณ → ${m.toUpperCase()} (ส่งคำสั่งไป EA แล้ว)`);
+    if (typeof Company !== 'undefined') Company.refresh();
   },
 
   // Fire approved per-pair signals to EA (gated behind traderDrivenSignals)
