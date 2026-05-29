@@ -492,10 +492,12 @@ void ManagePositions() {
       double ask  = SymbolInfoDouble(sym, SYMBOL_ASK);
       int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
 
-      // Original R = distance from entry to original SL
-      // We infer R from current SL distance (best effort)
+      // Original R distance. IMPORTANT: infer from the TP (which never moves),
+      // NOT the current SL — once SL trails to breakeven, open-curSL shrinks and
+      // would make profitR explode, breaking breakeven/trailing. TP = entry ± R×effRR.
       double price = (type == POSITION_TYPE_BUY) ? bid : ask;
-      double rDist = MathAbs(open - curSL);
+      double rDist = (curTP != 0 && effRR > 0) ? MathAbs(open - curTP) / effRR
+                                               : MathAbs(open - curSL);
       if (rDist <= 0) continue;
 
       // Profit in R-multiples
