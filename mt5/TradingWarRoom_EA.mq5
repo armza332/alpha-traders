@@ -85,6 +85,10 @@ input bool    AcceptWebSignals   = false;         // 🧠 Phase 13: Accept AI tr
 input bool    OnlyWebSignals     = false;         // 🎯 Phase 21.7: trade ONLY web signals (disable EA's own RSI+BB+Fib entries)
 input int     MaxSignalAgeSec    = 90;            // 🕐 Phase 26: drop web AI signals older than this (anti-stale; 0 = off)
 
+input group "=== PHASE A: EA-LOCAL AGENTS (fast on-bar firing) ==="
+input bool    UseLocalAgents     = false;         // ⚡ EA computes UT-Bot + Divergence itself (no web round-trip)
+input double  LocalMinConf       = 70;            // Min combined confidence (UT-Bot + Divergence) to fire
+
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
 CPositionInfo posInfo;
@@ -156,6 +160,9 @@ struct TradeCtx {
 };
 TradeCtx openCtx[];        // dynamic array
 int      openCtxCount = 0;
+
+// Phase A: EA-local agent output. dir: +1 buy, -1 sell, 0 none
+struct AgentOut { int dir; double conf; };
 
 //═══════════════════ ON INIT ════════════════════════════════════════
 int OnInit() {
@@ -269,7 +276,8 @@ void OnTick() {
    // Trade check per symbol
    for (int i = 0; i < nActiveSyms; i++) {
       if (!runEnabled[i]) continue;   // Phase 12.9: skip if disabled from web
-      CheckSignal(symbols[i], i);
+      CheckSignal(symbols[i], i);                          // updates dashboard scan
+      if (UseLocalAgents) EvaluateLocalCombo(symbols[i], i);  // Phase A: EA fires its own combo (fast)
    }
 }
 
@@ -1264,6 +1272,123 @@ int CloseAllMyPositions() {
       if (trade.PositionClose(posInfo.Ticket())) closed++;
    }
    return closed;
+}
+
+//═══════════════════ PHASE A: EA-LOCAL AGENTS (ported from web JS) ═══════════
+// Evaluate on CLOSED bars (start index 1) so it mirrors the web's closed-candle
+// feed. Parity is approximate (different data source) — validate live vs web.
+
+// UT-Bot — ATR trailing-stop trend (mirror of web UTBotAgent: keyValue 2, ATR 10)
+AgentOut AgentUTBot(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 40, r) < 32) return o;       // closed bars only
+   int n = ArraySize(r);
+   double closes[]; ArrayResize(closes, n);
+   for (int i = 0; i < n; i++) closes[i] = r[n-1-i].close;  // oldest → newest
+
+   // ATR(10) simple over true range of the most recent 10 bars
+   double sumTR = 0; int cnt = 0;
+   for (int i = n-10; i < n; i++) {
+      if (i < 1) continue;
+      double h = r[n-1-i].high, l = r[n-1-i].low, pc = r[n-1-(i-1)].close;
+      sumTR += MathMax(h-l, MathMax(MathAbs(h-pc), MathAbs(l-pc))); cnt++;
+   }
+   if (cnt == 0) return o;
+   double atr = sumTR / cnt;
+   double nLoss = 2.0 * atr;
+
+   int start = n - 30; if (start < 1) start = 1;
+   double stop = closes[start-1];
+   for (int i = start; i < n; i++) {
+      double c = closes[i], pc = closes[i-1];
+      if (c > stop && pc > stop)      stop = MathMax(stop, c - nLoss);
+      else if (c < stop && pc < stop) stop = MathMin(stop, c + nLoss);
+      else if (c > stop)              stop = c - nLoss;
+      else                            stop = c + nLoss;
+   }
+   double last = closes[n-1], prev = closes[n-2];
+   bool crossUp = (prev <= stop && last > stop);
+   bool crossDown = (prev >= stop && last < stop);
+   bool above = (last > stop);
+   int score = crossUp ? 30 : crossDown ? -30 : above ? 12 : -12;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.3);
+   return o;
+}
+
+// Divergence — RSI/MACD vs price over last 20 closed bars (mirror of web DivergenceAgent)
+AgentOut AgentDivergence(string sym, ENUM_TIMEFRAMES tf, int idx) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   int lb = 20, half = 10;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, lb, r) < lb) return o;
+   double H[], L[]; ArrayResize(H, lb); ArrayResize(L, lb);
+   for (int i = 0; i < lb; i++) { H[i] = r[lb-1-i].high; L[i] = r[lb-1-i].low; }   // oldest → newest
+
+   // RSI series: reuse the per-symbol RSI handle (period 14, effTF) — each buffer
+   // value IS the RSI at that bar. MACD hist: temp handle (12/26/9).
+   double rsiB[], mMain[], mSig[];
+   ArraySetAsSeries(rsiB, true); ArraySetAsSeries(mMain, true); ArraySetAsSeries(mSig, true);
+   int hM = iMACD(sym, tf, 12, 26, 9, PRICE_CLOSE);
+   if (hM == INVALID_HANDLE) return o;
+   bool ok = (CopyBuffer(rsiHandle[idx], 0, 1, lb, rsiB) == lb) &&
+             (CopyBuffer(hM, 0, 1, lb, mMain) == lb) &&
+             (CopyBuffer(hM, 1, 1, lb, mSig)  == lb);
+   IndicatorRelease(hM);
+   if (!ok) return o;
+   double RS[], HI[]; ArrayResize(RS, lb); ArrayResize(HI, lb);
+   for (int i = 0; i < lb; i++) { RS[i] = rsiB[lb-1-i]; HI[i] = mMain[lb-1-i] - mSig[lb-1-i]; }
+
+   double fhMaxP=-1e18, shMaxP=-1e18, fhMinP=1e18, shMinP=1e18;
+   double fhMaxR=-1e18, shMaxR=-1e18, fhMinR=1e18, shMinR=1e18;
+   double fhMaxH=-1e18, shMaxH=-1e18, fhMinH=1e18, shMinH=1e18;
+   for (int i = 0; i < half; i++) {
+      fhMaxP=MathMax(fhMaxP,H[i]); fhMinP=MathMin(fhMinP,L[i]);
+      fhMaxR=MathMax(fhMaxR,RS[i]); fhMinR=MathMin(fhMinR,RS[i]);
+      fhMaxH=MathMax(fhMaxH,HI[i]); fhMinH=MathMin(fhMinH,HI[i]);
+   }
+   for (int i = half; i < lb; i++) {
+      shMaxP=MathMax(shMaxP,H[i]); shMinP=MathMin(shMinP,L[i]);
+      shMaxR=MathMax(shMaxR,RS[i]); shMinR=MathMin(shMinR,RS[i]);
+      shMaxH=MathMax(shMaxH,HI[i]); shMinH=MathMin(shMinH,HI[i]);
+   }
+   int score = 0;
+   if (shMinP < fhMinP*0.998 && shMinR > fhMinR+2)    score += 25;   // bull RSI div
+   if (shMinP < fhMinP*0.998 && shMinH > fhMinH+0.01) score += 20;   // bull MACD div
+   if (shMaxP > fhMaxP*1.002 && shMaxR < fhMaxR-2)    score -= 25;   // bear RSI div
+   if (shMaxP > fhMaxP*1.002 && shMaxH < fhMaxH-0.01) score -= 20;   // bear MACD div
+   if (shMinP > fhMinP*1.002 && shMinR < fhMinR-2)    score += 10;   // hidden bull
+   if (shMaxP < fhMaxP*0.998 && shMaxR > fhMaxR+2)    score -= 10;   // hidden bear
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.0);
+   return o;
+}
+
+// EA-local combo: UT-Bot + Divergence must AGREE → fire. Commander (web) still
+// controls via runEnabled[] / eaPaused / portfolio-risk / cooldown.
+void EvaluateLocalCombo(string sym, int idx) {
+   if (eaPaused) return;
+   if (CountPositions(sym) >= effMaxPos) return;
+   if (PortfolioRiskPct() >= MaxPortfolioRiskPct) return;
+   if (TimeCurrent() - lastSignalTime[idx] < effCooldownMin * 60) return;
+
+   AgentOut ut = AgentUTBot(sym, effTF);
+   AgentOut dv = AgentDivergence(sym, effTF, idx);
+   if (ut.dir == 0 || dv.dir == 0 || ut.dir != dv.dir) return;   // need agreement
+   double conf = (ut.conf + dv.conf) / 2.0;
+   if (conf < LocalMinConf) return;
+
+   bool isBuy = (ut.dir > 0);
+   double atrArr[], rsiArr[];
+   ArraySetAsSeries(atrArr, true); ArraySetAsSeries(rsiArr, true);
+   if (CopyBuffer(atrHandle[idx], 0, 0, 1, atrArr) != 1) return;
+   if (CopyBuffer(rsiHandle[idx], 0, 0, 1, rsiArr) != 1) return;
+
+   PrintFormat("⚡ LOCAL COMBO %s %s | UT-Bot + Divergence agree | conf %.0f",
+               sym, isBuy ? "BUY" : "SELL", conf);
+   ExecuteTrade(sym, idx, isBuy, atrArr[0], rsiArr[0], "local");
+   lastSignalTime[idx] = TimeCurrent();
 }
 
 //═══════════════════ PHASE 12.6: Live Training Loop ═══════════════════
