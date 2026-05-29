@@ -92,6 +92,7 @@ input ENUM_SIG_MODE SignalMode   = SIG_WEB;       // 🔀 WEB=สัญญาณ
 input double  LocalMinConf       = 70;            // EA-local: min combined conf (UT-Bot + Divergence) to fire
 input bool    EAUseFirmSniper    = false;         // 🎯 Phase C.2: EA-local ใช้ FirmSniper (hard-filter 4 ชั้น) แทน combo เดิมทุกคู่
 input double  DxyDeadband        = 0.05;          // 🎯 FirmSniper: |USD trend| ต่ำกว่านี้ = flat (ผ่านทั้ง buy/sell)
+input bool    FirmSniperUseNews  = true;          // 🎯 Phase C.3: ใช้ News filter จาก bridge (ครบ 5 ชั้น) — งดเทรดช่วงข่าวแรง
 
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
@@ -118,6 +119,9 @@ int           lastCmdId   = 0;       // last processed command ID
 bool          eaPaused    = false;   // Phase 12.4: remote pause flag
 int           gSignalMode = 0;       // Phase A: 0=WEB 1=EA 2=BOTH (runtime; web can change)
 string        gCombo[3];             // Phase C: per-pair combo override [0]=XAU [1]=AUD [2]=EUR (dot-keys; ""=default)
+bool          gNewsBlocked = false;  // Phase C.3: high-impact news window now (from bridge)
+string        gNewsRisk    = "LOW";  // Phase C.3: LOW/MED/HIGH (from bridge, for dashboard)
+datetime      gNewsTime    = 0;      // Phase C.3: when news state last refreshed (freshness guard)
 int           rsiHandle[MAX_SYMS], bbHandle[MAX_SYMS], atrHandle[MAX_SYMS];
 string        symbols[MAX_SYMS];
 int           nActiveSyms = 0;       // dynamically counted in OnInit
@@ -816,6 +820,13 @@ void UpdateDashboard() {
              TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES) + "  " + (IsLondonNYSession() ? "[LDN/NY]" : "[ASIA]"),
              IsLondonNYSession() ? C'255,230,0' : C'128,128,128',
              7);
+   // Phase C.3: news state (from bridge) — relevant when FirmSniper is active
+   bool newsFresh = (gNewsTime > 0 && TimeCurrent() - gNewsTime < 600);
+   bool newsHalt  = (FirmSniperUseNews && gNewsBlocked && newsFresh);
+   DashLabel("NEWS_LBL", DASH_X+200, y+28,
+             newsHalt ? "🚫 NEWS HALT" : ("📰 " + (newsFresh ? gNewsRisk : "—")),
+             newsHalt ? C'255,80,80' : (gNewsRisk == "MED" ? C'255,200,0' : C'120,180,255'),
+             7);
 
    // ── Account block ──
    y += 50;
@@ -1171,6 +1182,17 @@ void PollWebCommands() {
 
    string body = CharArrayToString(result, 0, -1, CP_UTF8);
    if (StringLen(body) < 10) return;
+
+   // Phase C.3: parse news risk on EVERY poll (even when no new command) — bridge
+   // attaches "news":{"risk":"HIGH","block":true,...} computed server-side.
+   int bp = StringFind(body, "\"block\":");
+   if (bp >= 0) {
+      string bv = StringSubstr(body, bp + 8, 6);
+      gNewsBlocked = (StringFind(bv, "true") >= 0);
+      gNewsTime    = TimeCurrent();
+      int rp = StringFind(body, "\"risk\":\"");
+      if (rp >= 0) { int rs = rp + 8, re = StringFind(body, "\"", rs); if (re > rs) gNewsRisk = StringSubstr(body, rs, re - rs); }
+   }
 
    // Parse simple JSON: {"ok":true,"cmd":"close_all","id":5}
    // Cheap string-based parser (no JSON lib in MQL5 core)
@@ -1626,6 +1648,11 @@ AgentOut AgentDXY(string sym, ENUM_TIMEFRAMES tf) {
 //    1) Liquidity Sweep  2) Discount/Premium  3) OB + FVG  4) Macro DXY ไม่สวน
 AgentOut AgentSniper(string sym, ENUM_TIMEFRAMES tf) {
    AgentOut o; o.dir = 0; o.conf = 30;
+
+   // Layer 0 (5th filter): NEWS — งดเทรดช่วงข่าวแรง (จาก bridge, web calendar).
+   // honor only if fresh (<10 min); stale = fail-open so a dropped poll won't freeze it.
+   if (FirmSniperUseNews && gNewsBlocked && (TimeCurrent() - gNewsTime < 600)) return o;
+
    MqlRates r[]; ArraySetAsSeries(r, true);
    if (CopyRates(sym, tf, 1, 55, r) < 55) return o;
    double close = r[0].close;

@@ -6,7 +6,8 @@
  *        body: {type:'cmd', secret, cmd, ...} from web → enqueue command
  *   GET  /?action=status              → Latest status JSON
  *   GET  /?action=prices              → Latest prices
- *   GET  /?action=command&since=N     → Next pending command after id N (for EA)
+ *   GET  /?action=command&since=N     → Next pending command after id N (for EA) + news risk
+ *   GET  /?action=news[&win=30]       → Current high-impact news risk {risk,block,near,cur}
  *   GET  /?action=history             → Last 100 status snapshots
  *   GET  /?action=clear               → Wipe stored data
  *
@@ -42,6 +43,42 @@ function appendTradeToSheet(d) {
                   d.sym, d.side, d.agent || '', d.entry, d.exit, d.profit,
                   d.rMult, d.outcome, String(d.posId)]);
   } catch (err) { /* Sheets not authorized / bad ID — silently skip */ }
+}
+
+// ─── Phase C.3: News risk (server-side) — mirrors web NewsAgent calendar ───
+// Day-of-week (UTC) high-impact economic events. Returns {risk, block, near, cur}.
+// block=true when a HIGH-impact event is within ±windowMin (default 30) → FirmSniper
+// (and any news-aware logic) should stand down. Self-contained: no external API.
+function newsCalendar_(day) {
+  var cal = {
+    1: [ { t:'01:30', imp:'medium', cur:'AUD' }, { t:'14:00', imp:'high', cur:'USD' } ],
+    2: [ { t:'01:30', imp:'high', cur:'AUD' }, { t:'14:00', imp:'high', cur:'USD' } ],
+    3: [ { t:'09:00', imp:'high', cur:'EUR' }, { t:'12:15', imp:'medium', cur:'USD' }, { t:'18:00', imp:'high', cur:'USD' } ],
+    4: [ { t:'11:00', imp:'high', cur:'GBP' }, { t:'12:30', imp:'high', cur:'USD' }, { t:'12:45', imp:'high', cur:'EUR' } ],
+    5: [ { t:'12:30', imp:'high', cur:'USD' }, { t:'14:00', imp:'medium', cur:'USD' } ],
+    0: [], 6: []
+  };
+  return cal[day] || [];
+}
+function newsRisk_(windowMin) {
+  windowMin = windowMin || 30;
+  var now = new Date();
+  var day = now.getUTCDay();
+  if (day === 0 || day === 6) return { risk: 'LOW', block: false, near: 9999, cur: '' };
+  var nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  var events = newsCalendar_(day);
+  var nearestHigh = 9999, highCount = 0, blockCur = '';
+  for (var i = 0; i < events.length; i++) {
+    if (events[i].imp !== 'high') continue;
+    var p = events[i].t.split(':');
+    var eMin = parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+    var away = Math.abs(eMin - nowMin);
+    highCount++;
+    if (away < nearestHigh) { nearestHigh = away; blockCur = events[i].cur; }
+  }
+  var block = (nearestHigh <= windowMin);
+  var risk = block ? 'HIGH' : (highCount >= 1 && nearestHigh <= 120) ? 'MED' : 'LOW';
+  return { risk: risk, block: block, near: nearestHigh, cur: blockCur };
 }
 
 // ─── POST: Receive status from EA OR command from web ────
@@ -184,11 +221,17 @@ function doGet(e) {
       return json({ ok: false, error: 'Invalid secret' });
     }
     const since = parseInt(e.parameter.since || '0', 10);
+    const nr = newsRisk_();   // Phase C.3: attach news on every poll
     const raw = props.getProperty('LAST_CMD');
-    if (!raw) return json({ ok: true, msg: 'No commands', id: 0 });
+    if (!raw) return json({ ok: true, msg: 'No commands', id: 0, news: nr });
     const cmd = JSON.parse(raw);
-    if (cmd.id <= since) return json({ ok: true, msg: 'No new commands', id: cmd.id });
-    return json({ ok: true, cmd: cmd.cmd, id: cmd.id, ts: cmd.ts });
+    if (cmd.id <= since) return json({ ok: true, msg: 'No new commands', id: cmd.id, news: nr });
+    return json({ ok: true, cmd: cmd.cmd, id: cmd.id, ts: cmd.ts, news: nr });
+  }
+
+  // Phase C.3: standalone news endpoint (debug / web). ?action=news&win=30
+  if (action === 'news') {
+    return json({ ok: true, news: newsRisk_(parseInt(e.parameter.win || '30', 10)) });
   }
 
   if (action === 'history') {
