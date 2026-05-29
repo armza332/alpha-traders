@@ -2844,6 +2844,8 @@ const Company = {
     aud_meanrev:  { name:'Aussie Power',   icon:'🇦🇺', agents:['rsi','divergence','utbot'],      desc:'AUD สามตัวเทพ: RSI + Divergence + UT-Bot — KB ใหม่: RSI +54R⭐ UTBot +49R Div +45R (บวกทุก regime)' },
     eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['utbot','divergence','mtf'],      desc:'EUR เทรนด์: UT-Bot + Divergence + MTF — KB ใหม่: EUR-UTBot +66R⭐ Divergence +50R (สองตัวแรงสุดของ EUR)' },
     eur_structure:{ name:'Euro Momentum',  icon:'🇪🇺', agents:['utbot','sweep','mtf'],           desc:'EUR โมเมนตัม: UT-Bot + Sweep + MTF — KB ใหม่: UTBot +66R, Sweep เด่นตอน trending (+55R)' },
+    // ── BlackGlacier: elite gold specialist — 4-factor confluence, max discipline ──
+    blackglacier: { name:'BlackGlacier Gold', icon:'🧊', agents:['mtf','ichimoku','orderblock','sweep'], desc:'ทองระดับกองทุน: MTF คุมเทรนด์ + Ichimoku เมฆ/regime + Order Block โซนสถาบัน + Sweep กวาด liquidity — ยืนยัน 4 ชั้น เข้าน้อยมากแต่แม่น มีวินัยสุด ไม่ออกซิกมั่ว' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
@@ -2972,6 +2974,7 @@ const Company = {
     // 🥇 GOLD desk
     { id:'emp_mr', sym:'XAUUSD', combo:'xau_meanrev',  name:'Mina',   sprite:[1,0], face:{skin:'#f0c8a0',hair:'#caa24a',style:'long', acc:'glasses', accColor:'#ffd700'} },
     { id:'emp_sm', sym:'XAUUSD', combo:'xau_liquidity',name:'Sienna', sprite:[8,0], face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#ffd700'} },
+    { id:'emp_bg', sym:'XAUUSD', combo:'blackglacier', name:'BlackGlacier', sprite:[9,0], face:{skin:'#cdab8a',hair:'#0a0a12',style:'short',acc:'glasses',accColor:'#7fd0ff'} },
     // 🇦🇺 AUD desk
     { id:'emp_tr', sym:'AUDUSD', combo:'aud_trend',    name:'Trent',  sprite:[4,0], face:{skin:'#e9b48c',hair:'#3a2a1a',style:'short',acc:'headset', accColor:'#00ccff'} },
     { id:'emp_rv', sym:'AUDUSD', combo:'aud_meanrev',  name:'Ravi',   sprite:[3,0], face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#00ccff'} },
@@ -3025,7 +3028,7 @@ const Company = {
       ce.forEach(e => { if (!this.EMPLOYEES.find(x => x.id === e.id)) this.EMPLOYEES.push(e); });
     } catch {}
   },
-  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl'],
+  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl','emp_bg'],
   addCombo() {
     const avail = Object.keys(this._KEYMAP).filter(k => k !== 'mtf');
     const name = prompt('ชื่อคอมโบใหม่ (เช่น "Gold Scalp X"):'); if (!name) return;
@@ -3371,7 +3374,7 @@ const Company = {
   // Vetted default per pair = the SAME combo the EA already runs by default,
   // so a push never downgrades the EA — it only changes once an employee has
   // PROVEN (≥5 real trades) a better R.
-  _DEFAULT_EMP: { XAUUSD: 'emp_mr', AUDUSD: 'emp_rv', EURUSD: 'emp_wv' },
+  _DEFAULT_EMP: { XAUUSD: 'emp_bg', AUDUSD: 'emp_rv', EURUSD: 'emp_wv' },
   pushCombosToEA() {
     if (typeof BotBridge === 'undefined' || !BotBridge.sendCommand) return;
     const lines = [];

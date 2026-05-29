@@ -67,6 +67,7 @@ input bool    UsePartialTP       = true;          // 💰 Phase 26: close part o
 input double  PartialAtR         = 1.0;           // Take partial profit at +N×R
 input double  PartialPct         = 50;            // % of position to close (the rest runs to TP)
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
+input double  MaxPerTradeRiskPct = 3.0;           // 🛡 Phase C.1: max risk % of equity on ONE trade (blocks oversized min-lot e.g. gold on small acct)
 
 input group "=== SYSTEM ==="
 input int     MagicNumber        = 992511;
@@ -438,6 +439,24 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
    double lot = CalculateLot(sym, slDist);
    if (lot < MinLot) lot = MinLot;
    if (lot > MaxLot) lot = MaxLot;
+
+   // Phase C.1: PER-TRADE risk cap. If the smallest allowed lot still risks more
+   // than MaxPerTradeRiskPct of equity (e.g. gold 0.01 lot on a $30 account),
+   // SKIP — never blow a big chunk on one trade. This is the firm's discipline.
+   {
+      double tv = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
+      double ts = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
+      double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+      if (tv > 0 && ts > 0 && eq > 0) {
+         double riskMoney = (slDist / ts) * tv * lot;
+         double riskPct   = riskMoney / eq * 100.0;
+         if (riskPct > MaxPerTradeRiskPct) {
+            PrintFormat("🚫 %s SKIP — trade risk %.1f%% > max %.1f%% (lot %.2f, risk $%.2f on eq $%.2f) — เล็กไปสำหรับคู่นี้",
+                        sym, riskPct, MaxPerTradeRiskPct, lot, riskMoney, eq);
+            return;
+         }
+      }
+   }
 
    // Phase 26: dash-delimited so the EA can read the agent tag back on close
    //   format: TWR-<B|S>-<agentTag>-R<rsi>  (e.g., TWR-B-cl-R43)
@@ -1553,7 +1572,7 @@ void GetComboKeys(string sym, string &keys[]) {
    // defaults (until the web pushes one)
    if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="divergence"; keys[2]="utbot"; }   // Aussie Power
    else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }   // Euro Trend
-   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="orderblock"; keys[2]="ichimoku"; } // Gold Range
+   else if (b == "XAUUSD") { ArrayResize(keys, 4); keys[0]="mtf"; keys[1]="ichimoku"; keys[2]="orderblock"; keys[3]="sweep"; } // BlackGlacier (4-factor)
    else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }
 }
 
