@@ -2171,7 +2171,7 @@ const Office = {
       const monTxt = sig === 'buy' ? '▲' : sig === 'sell' ? '▼' : '··';
       return `<div class="twr-emp${active?' active':''}" style="position:relative;text-align:center;${active?`color:${sigCol};`:''}">
         ${bubble}
-        <div class="twr-head" style="display:inline-block;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;padding:1px">${head}</div>
+        <div class="twr-head" style="position:relative;display:inline-block;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;padding:1px;min-width:22px;min-height:30px">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:130%;image-rendering:pixelated;pointer-events:none"></div>
         <div style="margin:2px auto 0;width:34px;height:20px;background:#05080f;border:2px solid ${active?sigCol:'#2a3550'};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;color:${sigCol};${active?`box-shadow:0 0 9px ${sigCol}`:''}">${monTxt}</div>
         <div style="height:5px;background:linear-gradient(90deg,#3a2a1a,#5a4326,#3a2a1a);border-radius:1px;margin-top:1px"></div>
         <div style="font-size:8px;color:#fff;font-weight:bold;margin-top:3px">${e.name}</div>
@@ -2967,16 +2967,16 @@ const Company = {
   // ═══════════════════════════════════════════════════════
   EMPLOYEES: [
     // 🥇 GOLD desk
-    { id:'emp_mr', sym:'XAUUSD', combo:'xau_meanrev',  name:'Mina',   face:{skin:'#f0c8a0',hair:'#caa24a',style:'long', acc:'glasses', accColor:'#ffd700'} },
-    { id:'emp_sm', sym:'XAUUSD', combo:'xau_liquidity',name:'Sienna', face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#ffd700'} },
+    { id:'emp_mr', sym:'XAUUSD', combo:'xau_meanrev',  name:'Mina',   sprite:[1,0], face:{skin:'#f0c8a0',hair:'#caa24a',style:'long', acc:'glasses', accColor:'#ffd700'} },
+    { id:'emp_sm', sym:'XAUUSD', combo:'xau_liquidity',name:'Sienna', sprite:[8,0], face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#ffd700'} },
     // 🇦🇺 AUD desk
-    { id:'emp_tr', sym:'AUDUSD', combo:'aud_trend',    name:'Trent',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'short',acc:'headset', accColor:'#00ccff'} },
-    { id:'emp_rv', sym:'AUDUSD', combo:'aud_meanrev',  name:'Ravi',   face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#00ccff'} },
+    { id:'emp_tr', sym:'AUDUSD', combo:'aud_trend',    name:'Trent',  sprite:[4,0], face:{skin:'#e9b48c',hair:'#3a2a1a',style:'short',acc:'headset', accColor:'#00ccff'} },
+    { id:'emp_rv', sym:'AUDUSD', combo:'aud_meanrev',  name:'Ravi',   sprite:[3,0], face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#00ccff'} },
     // 🇪🇺 EUR desk
-    { id:'emp_wv', sym:'EURUSD', combo:'eur_trend',    name:'Willa',  face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#4169e1'} },
-    { id:'emp_bo', sym:'EURUSD', combo:'eur_structure',name:'Blaze',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#4169e1'} },
+    { id:'emp_wv', sym:'EURUSD', combo:'eur_trend',    name:'Willa',  sprite:[10,0],face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#4169e1'} },
+    { id:'emp_bo', sym:'EURUSD', combo:'eur_structure',name:'Blaze',  sprite:[2,0], face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#4169e1'} },
     // 🧠 floating elite — competes on every pair
-    { id:'emp_cl', combo:'claude_elite',name:'Claude', face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
+    { id:'emp_cl', combo:'claude_elite',name:'Claude', sprite:[0,0], face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
   ],
 
   // PHASE 25.1: beep when an employee fires (buy = rising, sell = falling)
@@ -3276,7 +3276,7 @@ const Company = {
       return `<div class="twr-emp${activePair?' active':''}" style="flex:1;min-width:200px;padding:8px;border:1px solid ${activePair?sigCol:'var(--border)'};border-radius:6px;background:${activePair?sigCol+'14':'rgba(255,255,255,0.02)'};position:relative;${activePair?`color:${sigCol};`:''}">
         ${bubble}
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-          <span class="twr-head" style="display:inline-block;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;padding:1px">${head}</span>
+          <span class="twr-head" style="position:relative;display:inline-block;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;padding:1px;min-width:24px;min-height:32px">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:140%;image-rendering:pixelated;pointer-events:none"></span>
           <div style="line-height:1.25;min-width:0">
             <div style="font-size:10px;color:var(--gold);font-weight:bold">${e.name}${activePair?` <span style="font-size:7px;color:var(--green)">🎯 ${activePair.replace('USD','')}</span>`:''}${!this._BUILTIN_EMP.includes(e.id)?` <span onclick="event.stopPropagation();Company.removeEmployee('${e.id}')" title="ปลด" style="cursor:pointer;color:var(--red);font-size:8px">✕</span>`:''}</div>
             <div style="font-size:6px;color:#9aa">${combo.icon} ${combo.name} · ${combo.agents.map(k=>this._KEYMAP[k]||k).join('+')}</div>
