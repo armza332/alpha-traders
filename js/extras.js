@@ -3666,15 +3666,48 @@ const Company = {
   },
 
   // OFFICE — data panels, safe to re-render every tick (no chat input here)
+  // Phase 26.4: live pixel room — each agent sits at a desk on the room art,
+  // with a status bubble that colours by confidence (≥90% = COMBO glow).
+  ROOM_POS: {
+    emp_mr: { x:16, y:62 }, emp_sm: { x:38, y:74 }, emp_tr: { x:55, y:54 },
+    emp_rv: { x:69, y:40 }, emp_wv: { x:82, y:50 }, emp_bo: { x:90, y:63 },
+    emp_cl: { x:47, y:88 },
+  },
+  renderPixelRoom() {
+    const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX;
+    const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    const teamFor = (s) => s === 'XAUUSD' ? gold : s === 'AUDUSD' ? (fx && fx.aud) : (fx && fx.eur);
+    const figs = this.EMPLOYEES.map(e => {
+      const pos = this.ROOM_POS[e.id] || { x:50, y:50 };
+      let sig = 'wait', conf = 0;
+      try {
+        if (e.sym) { const d = this._empDecision(e, e.sym, teamFor(e.sym), bot); sig = d.signal; conf = d.conf || 0; }
+        else ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { const d = this._empDecision(e, s, teamFor(s), bot); if ((d.conf||0) > conf) { conf = d.conf||0; sig = d.signal; } });
+      } catch (_) {}
+      const dirActive = (sig === 'buy' || sig === 'sell');
+      const isCombo = conf >= 90 && dirActive;
+      const bg = isCombo ? (sig === 'buy' ? '#00ffae' : '#ff4d6d') : `hsl(${Math.min(120, conf*1.2)} 85% 55%)`;
+      const dir = sig === 'buy' ? 'BUY' : sig === 'sell' ? 'SELL' : '···';
+      const z = Math.round(pos.y) + 5;
+      return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-100%);z-index:${z};width:84px;text-align:center;pointer-events:none">
+        ${dirActive ? `<div style="display:inline-block;font-size:7px;font-weight:bold;padding:1px 5px;border-radius:6px 6px 6px 0;color:#04140d;background:${bg};white-space:nowrap;${isCombo?'box-shadow:0 0 10px '+bg+',0 0 18px '+bg+';animation:twrPulse 0.9s ease-in-out infinite':''}">${isCombo?'⚡':''}${dir} ${conf}%</div>` : ''}
+        <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:62px;image-rendering:pixelated;display:block;margin:1px auto 0;filter:drop-shadow(0 3px 4px rgba(0,0,0,.7))">
+        <div style="font-size:7px;font-weight:bold;color:${e.face.accColor};text-shadow:0 1px 2px #000">${e.name}</div>
+      </div>`;
+    }).join('');
+    return `<div style="position:relative;width:100%;max-width:940px;margin:0 auto 12px;border-radius:8px;overflow:hidden;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,.55)">
+      <img src="assets/room-bg.png?v=41" style="width:100%;display:block;image-rendering:pixelated">
+      <div style="position:absolute;left:12px;top:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Live Floor</div>
+      ${figs}
+    </div>`;
+  },
+
   renderOffice() {
     const gold = TradingWarRoom?.lastGold;
     const fx   = TradingWarRoom?.lastFX;
     const autoPilot = Settings.get('autoPilot', false);
     return `
-      <div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:10px;border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.5)">
-        <img src="assets/room-bg.png?v=39" alt="Alpha Traders Floor" style="width:100%;display:block;image-rendering:pixelated">
-        <div style="position:absolute;left:12px;bottom:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Trading Floor</div>
-      </div>
+      ${this.renderPixelRoom()}
       ${autoPilot ? `<div style="padding:8px 12px;background:rgba(0,255,65,0.1);border:1px solid var(--green);margin-bottom:10px;font-size:9px;color:var(--green)">
         🤖 <b>AUTO PILOT ON</b> — ทีมตัดสินใจเอง 100% · Grade A+ → EA ทันที
       </div>` : ''}

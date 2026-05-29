@@ -29,12 +29,17 @@ const SpriteSlicer = {
     const W = this._img.naturalWidth, H = this._img.naturalHeight;
     const cellW = W / this.COLS;
     const bodyH = (H - this.TITLE_H) / this.ROWS;
-    const sx = col * cellW, sy = this.TITLE_H + row * bodyH;
+    // inset each cell so neighbouring characters don't bleed into the crop
+    const insetX = cellW * 0.16, insetTop = bodyH * 0.04, insetBot = bodyH * 0.02;
+    const srcX = col * cellW + insetX;
+    const srcY = this.TITLE_H + row * bodyH + insetTop;
+    const srcW = cellW - insetX * 2;
+    const srcH = bodyH - insetTop - insetBot;
 
     const cv = document.createElement('canvas');
-    cv.width = Math.round(cellW); cv.height = Math.round(bodyH);
+    cv.width = Math.round(srcW); cv.height = Math.round(srcH);
     const ctx = cv.getContext('2d');
-    ctx.drawImage(this._img, sx, sy, cellW, bodyH, 0, 0, cv.width, cv.height);
+    ctx.drawImage(this._img, srcX, srcY, srcW, srcH, 0, 0, cv.width, cv.height);
     try {
       const id = ctx.getImageData(0, 0, cv.width, cv.height), d = id.data;
       for (let i = 0; i < d.length; i += 4) {
