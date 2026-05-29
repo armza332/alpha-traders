@@ -93,6 +93,8 @@ const Backtest = {
       const spreadPx = (typeof Settings !== 'undefined')
         ? Settings.get('btSpread_' + symbol, SPREAD_EST[symbol] || 0.0002)
         : (SPREAD_EST[symbol] || 0.0002);
+      const slipPx = spreadPx * 0.5;   // Phase 26.2: losers fill ~half a spread worse
+      const commR  = (typeof Settings !== 'undefined') ? Settings.get('btCommissionR_' + symbol, 0) : 0;
 
       const trades = [];
       const equityCurve = [];
@@ -112,18 +114,19 @@ const Backtest = {
           const hitSL = isLong ? c.low  <= openTrade.sl : c.high >= openTrade.sl;
           const hitTP = isLong ? c.high >= openTrade.tp : c.low  <= openTrade.tp;
           const slDist = Math.abs(openTrade.entry - openTrade.sl) || 1e-9;
-          const costR  = spreadPx / slDist;   // spread cost charged to every trade, in R
+          const costR  = spreadPx / slDist + commR;   // entry spread + commission, every trade
+          const slipR  = slipPx / slDist;              // extra slippage on stop-outs
 
           if (hitSL && hitTP) {
             // ทั้งสองชนกัน → assume SL ก่อน (conservative)
             openTrade.exit = openTrade.sl;
             openTrade.outcome = 'loss';
-            openTrade.r = -1 - costR;
+            openTrade.r = -1 - costR - slipR;
             openTrade.exitIdx = i;
           } else if (hitSL) {
             openTrade.exit = openTrade.sl;
             openTrade.outcome = 'loss';
-            openTrade.r = -1 - costR;
+            openTrade.r = -1 - costR - slipR;
           } else if (hitTP) {
             openTrade.exit = openTrade.tp;
             openTrade.outcome = 'win';

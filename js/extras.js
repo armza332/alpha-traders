@@ -2833,14 +2833,14 @@ const Company = {
     breakout:    { name:'Breakout',       icon:'🚀', agents:['breakout','utbot','pattern'],   desc:'เบรกกรอบ + เทรนด์หนุน + แท่งยืนยัน' },
     reversal_sr: { name:'Reversal @ S/R', icon:'🔄', agents:['pivot','rsi','pattern'],        desc:'ราคาถึงแนว S/R + RSI สุดขั้ว + แท่งกลับตัว' },
     wave:        { name:'Wave/Structure', icon:'🌊', agents:['elliott','fib','smc'],          desc:'นับ Elliott + Fib retrace + โครงสร้าง SMC' },
-    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','divergence','smc'], desc:'คัดจากสถิติ KB จริง: MTF คุมเทรนด์หลัก + Divergence (agent เดียวที่บวกทั้ง 3 คู่) + โครงสร้าง SMC — เข้าเฉพาะที่มีหลายปัจจัยยืนยัน เน้นคุณภาพ ตัดขาดทุนไว ปล่อยกำไรวิ่ง ไม่ไล่ราคา' },
-    // ── Phase 26: pair-dedicated combos, each tuned from this account's KB ──
-    xau_meanrev:  { name:'Gold Mean-Rev',  icon:'🥇', agents:['bollinger','divergence','sweep'], desc:'ทอง (ออกข้าง): กลับตัวขอบ BB + Divergence + กวาด liquidity — KB: Gold-BB ranging +44R, Sweep +34R' },
-    xau_liquidity:{ name:'Gold Liquidity', icon:'🥇', agents:['sweep','utbot','divergence'],     desc:'ทอง (เทรนด์): กวาด liquidity + UT-Bot ตามเทรนด์ + Divergence ยืนยัน — KB: Gold-Sweep +34R, UT-Bot +30R' },
-    aud_trend:    { name:'Aussie Trend',   icon:'🇦🇺', agents:['utbot','smc','mtf'],              desc:'AUD เทรนด์: UT-Bot + โครงสร้าง SMC + MTF คุมทิศ — KB: AUD-SMC +23R, UT-Bot +9R' },
-    aud_meanrev:  { name:'Aussie Range',   icon:'🇦🇺', agents:['rsi','divergence','sweep'],       desc:'AUD เป็นคู่ออกข้าง: RSI สุดขั้ว + Divergence + Sweep — KB: AUD-RSI +50R⭐ (ranging +72R) ตัวแรงสุด' },
-    eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['ichimoku','divergence','smc'],    desc:'EUR เป็นคู่เทรนด์: เมฆ Ichimoku + Divergence + SMC — KB: EUR-Ichimoku +46R⭐ Divergence +34R' },
-    eur_structure:{ name:'Euro Structure', icon:'🇪🇺', agents:['ichimoku','smc','orderblock'],    desc:'EUR โครงสร้าง: Ichimoku + SMC + Order Block — KB: EUR-OB volatile-trending +118R' },
+    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','utbot','divergence'], desc:'คัดจาก KB จริง (คิด spread): MTF คุมเทรนด์ + UT-Bot (บวกทั้ง 3 คู่) + Divergence (AUD+45/EUR+50) — เข้าเฉพาะที่ยืนยันหลายชั้น เน้นคุณภาพ' },
+    // ── Phase 26.2: pair combos RE-TUNED from realistic (spread-modeled) KB ──
+    xau_meanrev:  { name:'Gold Range',     icon:'🥇', agents:['rsi','orderblock','ichimoku'],  desc:'ทอง (ออกข้าง/โครงสร้าง): RSI + Order Block + Ichimoku — KB ใหม่: Gold-OB +59R⭐ Ichimoku +52R RSI +20R (เด่นใน ranging)' },
+    xau_liquidity:{ name:'Gold Structure', icon:'🥇', agents:['smc','ichimoku','orderblock'],  desc:'ทอง (โครงสร้าง): SMC + Ichimoku + Order Block — KB ใหม่: Gold-SMC +37R OB +59R Ichimoku +52R' },
+    aud_trend:    { name:'Aussie Trend',   icon:'🇦🇺', agents:['utbot','divergence','mtf'],      desc:'AUD เทรนด์: UT-Bot + Divergence + MTF — KB ใหม่: AUD-UTBot +49R Divergence +45R' },
+    aud_meanrev:  { name:'Aussie Power',   icon:'🇦🇺', agents:['rsi','divergence','utbot'],      desc:'AUD สามตัวเทพ: RSI + Divergence + UT-Bot — KB ใหม่: RSI +54R⭐ UTBot +49R Div +45R (บวกทุก regime)' },
+    eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['utbot','divergence','mtf'],      desc:'EUR เทรนด์: UT-Bot + Divergence + MTF — KB ใหม่: EUR-UTBot +66R⭐ Divergence +50R (สองตัวแรงสุดของ EUR)' },
+    eur_structure:{ name:'Euro Momentum',  icon:'🇪🇺', agents:['utbot','sweep','mtf'],           desc:'EUR โมเมนตัม: UT-Bot + Sweep + MTF — KB ใหม่: UTBot +66R, Sweep เด่นตอน trending (+55R)' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
@@ -3043,6 +3043,21 @@ const Company = {
     alert(`✅ จ้างพนักงานใหม่: ${empName}\nคอมโบ: ${name} (${agents.map(a => this._KEYMAP[a]).join('+')})`);
     if (typeof Company !== 'undefined') Company.refresh();
     if (typeof TradingWarRoom !== 'undefined' && TradingWarRoom.fullUpdate) TradingWarRoom.fullUpdate();
+  },
+
+  // Phase 26: one click — enable exactly the analysts every combo needs
+  enableComboAnalysts() {
+    if (typeof Settings === 'undefined') return;
+    const need = new Set(['MTF']);
+    this.EMPLOYEES.forEach(e => {
+      const c = this.COMBOS[e.combo]; if (!c) return;
+      c.agents.forEach(k => need.add(this._SETKEY[k] || k));
+    });
+    need.forEach(name => Settings.set('enable' + name, true));
+    if (typeof TradingWarRoom !== 'undefined' && TradingWarRoom.fullUpdate) { try { TradingWarRoom.fullUpdate(); } catch (e) {} }
+    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Strategy', `✅ เปิด analysts ที่ทีมต้องใช้: ${[...need].join(', ')}`);
+    alert('✅ เปิด Analysts ที่ทุกคอมโบต้องใช้แล้ว:\n' + [...need].join(', ') + '\n\n(เปิด Settings เช็คได้ — ตอนนี้ทุกทีมยิงได้ครบ)');
+    if (typeof Company !== 'undefined') Company.refresh();
   },
   // PHASE 25.4: wipe old test results (KB win-rates + audit) to test fresh
   freshTest() {
@@ -3285,7 +3300,8 @@ const Company = {
 
     return `<div style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--gold);font-weight:bold;margin-bottom:4px">👔 EMPLOYEE BOARD — ${this.EMPLOYEES.length} พนักงาน (1 คอมโบ/คน · แข่งกันออกซิก)
-        <button onclick="Company.addCombo()" class="btn btn-secondary" style="font-size:7px;padding:2px 8px;margin-left:8px">+ จ้างพนักงาน/คอมโบใหม่</button>
+        <button onclick="Company.enableComboAnalysts()" class="btn btn-primary" style="font-size:7px;padding:2px 8px;margin-left:8px;border-color:var(--green);color:var(--green)">✅ เปิด Analysts ที่ทีมใช้</button>
+        <button onclick="Company.addCombo()" class="btn btn-secondary" style="font-size:7px;padding:2px 8px;margin-left:4px">+ จ้างพนักงาน/คอมโบใหม่</button>
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>
       <div style="font-size:7px;padding:4px 6px;background:rgba(0,255,200,0.05);border:1px solid var(--teal);border-radius:5px;margin-bottom:6px">🎯 รอบนี้ใครได้คุม: ${wBanner}</div>
