@@ -2975,18 +2975,18 @@ const Company = {
   EMPLOYEES: [
     // 🥇 GOLD desk
     { id:'emp_mr', sym:'XAUUSD', combo:'xau_meanrev',  name:'Mina',   sprite:[1,0], face:{skin:'#f0c8a0',hair:'#caa24a',style:'long', acc:'glasses', accColor:'#ffd700'} },
-    { id:'emp_sm', sym:'XAUUSD', combo:'xau_liquidity',name:'Sienna', sprite:[8,0], face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#ffd700'} },
-    { id:'emp_bg', sym:'XAUUSD', combo:'blackglacier', name:'BlackGlacier', sprite:[9,0], face:{skin:'#cdab8a',hair:'#0a0a12',style:'short',acc:'glasses',accColor:'#7fd0ff'} },
+    { id:'emp_sm', sym:'XAUUSD', combo:'xau_liquidity',name:'Sienna', sprite:[1,1], face:{skin:'#e9b48c',hair:'#101015',style:'bun',  acc:'headband',accColor:'#ffd700'} },
+    { id:'emp_bg', sym:'XAUUSD', combo:'blackglacier', name:'BlackGlacier', sprite:[2,1], face:{skin:'#cdab8a',hair:'#0a0a12',style:'short',acc:'glasses',accColor:'#7fd0ff'} },
     // 🇦🇺 AUD desk
     { id:'emp_tr', sym:'AUDUSD', combo:'aud_trend',    name:'Trent',  sprite:[4,0], face:{skin:'#e9b48c',hair:'#3a2a1a',style:'short',acc:'headset', accColor:'#00ccff'} },
     { id:'emp_rv', sym:'AUDUSD', combo:'aud_meanrev',  name:'Ravi',   sprite:[3,0], face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#00ccff'} },
     // 🇪🇺 EUR desk
-    { id:'emp_wv', sym:'EURUSD', combo:'eur_trend',    name:'Willa',  sprite:[10,0],face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#4169e1'} },
+    { id:'emp_wv', sym:'EURUSD', combo:'eur_trend',    name:'Willa',  sprite:[3,1], face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#4169e1'} },
     { id:'emp_bo', sym:'EURUSD', combo:'eur_structure',name:'Blaze',  sprite:[2,0], face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#4169e1'} },
     // 🧠 floating elite — competes on every pair
     { id:'emp_cl', combo:'claude_elite',name:'Claude', sprite:[0,0], face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
     // 🎯 prop-firm specialist — floating elite, hard-filter sniper (takes any FX pair on perfect confluence)
-    { id:'emp_fs', combo:'firm_sniper', name:'FirmSniper', sprite:[5,0], face:{skin:'#d8b48c',hair:'#14181f',style:'short',acc:'glasses', accColor:'#36e08f'} },
+    { id:'emp_fs', combo:'firm_sniper', name:'FirmSniper', sprite:[0,1], face:{skin:'#d8b48c',hair:'#14181f',style:'short',acc:'glasses', accColor:'#36e08f'} },
   ],
 
   // PHASE 25.1: beep when an employee fires (buy = rising, sell = falling)
