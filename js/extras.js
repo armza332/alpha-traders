@@ -2158,28 +2158,29 @@ const Office = {
     const bot = BotBridge?.lastStatus;
     const winners = Company._pairWinners(teamFor, bot);
     const winnerOf = (id) => Object.keys(winners).find(s => winners[s] && winners[s].emp.id === id);
-    const desks = Company.EMPLOYEES.map(e => {
+    const cards = Company.EMPLOYEES.map(e => {
       const combo = Company.COMBOS[e.combo] || { icon:'', name:'' };
       let best = null;
       ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { if (e.sym && e.sym !== s) return; const d = Company._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const active = winnerOf(e.id);
-      const sig = best ? best.signal : 'wait';
+      const sig  = best ? best.signal : 'wait';
+      const conf = best ? (best.conf || 0) : 0;
       const sigCol = sig === 'buy' ? '#00ff66' : sig === 'sell' ? '#ff4040' : '#5a6a82';
-      const head = (typeof UI !== 'undefined' && UI.pixelFace) ? UI.pixelFace(e.face, 30)
-        : `<div style="width:30px;height:30px;background:${e.face.accColor}33"></div>`;
-      const bubble = active ? `<div class="twr-bubble" style="background:${sigCol};left:50%;transform:translateX(-50%);top:-12px">${sig==='buy'?'▲ BUY':'▼ SELL'} ${active.replace('USD','')}!</div>` : '';
-      const monTxt = sig === 'buy' ? '▲' : sig === 'sell' ? '▼' : '··';
-      return `<div class="twr-emp${active?' active':''}" style="position:relative;text-align:center;${active?`color:${sigCol};`:''}">
-        ${bubble}
-        <div class="twr-head" style="position:relative;display:inline-block;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;padding:1px;min-width:22px;min-height:30px">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:130%;image-rendering:pixelated;pointer-events:none"></div>
-        <div style="margin:2px auto 0;width:34px;height:20px;background:#05080f;border:2px solid ${active?sigCol:'#2a3550'};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;color:${sigCol};${active?`box-shadow:0 0 9px ${sigCol}`:''}">${monTxt}</div>
-        <div style="height:5px;background:linear-gradient(90deg,#3a2a1a,#5a4326,#3a2a1a);border-radius:1px;margin-top:1px"></div>
-        <div style="font-size:8px;color:#fff;font-weight:bold;margin-top:3px">${e.name}</div>
-        <div style="font-size:5.5px;color:${e.face.accColor}">${combo.icon} ${combo.name}</div>
+      const dirTxt = sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '· WAIT';
+      const pairBadge = e.sym ? e.sym.replace('USD','') : 'FLOAT';
+      return `<div class="twr-emp${active?' active':''}" style="position:relative;border:1px solid ${active?sigCol:e.face.accColor+'55'};border-radius:8px;background:#0c1220;padding:7px;text-align:center;${active?`box-shadow:0 0 12px ${sigCol}66;color:${sigCol};`:''}">
+        ${active?`<div style="position:absolute;top:5px;right:5px;z-index:2;font-size:6px;font-weight:bold;color:#04140d;background:${sigCol};padding:1px 5px;border-radius:4px">ออกไม้ ${active.replace('USD','')}</div>`:''}
+        <div style="width:100%;height:84px;overflow:hidden;border-radius:6px;background:linear-gradient(#131d2e,#0a0f18);display:flex;align-items:flex-start;justify-content:center">
+          <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:104px;width:auto;image-rendering:pixelated;filter:drop-shadow(0 2px 3px #000)">
+        </div>
+        <div style="font-size:9px;color:#fff;font-weight:bold;margin-top:4px">${e.name} <span style="font-size:6px;color:${e.face.accColor}">· ${pairBadge}</span></div>
+        <div style="font-size:6px;color:${e.face.accColor};margin-bottom:3px">${combo.icon} ${combo.name}</div>
+        <div style="font-size:7px;font-weight:bold;color:${sigCol}">${dirTxt} · ${conf}%</div>
+        <div style="height:4px;background:#1a2030;border-radius:2px;overflow:hidden;margin-top:2px"><div style="height:100%;width:${conf}%;background:${sigCol}"></div></div>
       </div>`;
     }).join('');
-    return `<div style="font-size:8px;color:var(--gold);text-align:center;margin-bottom:8px">💼 TRADING FLOOR — พนักงาน ${Company.EMPLOYEES.length} คน <span style="font-size:6px;color:#9aa">(คนเรืองแสง = กำลังออกไม้)</span></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px 8px;padding:12px 8px;background:repeating-linear-gradient(0deg,#0f1626 0 24px,#0c1220 24px 26px);border-radius:6px;margin-bottom:14px">${desks}</div>`;
+    return `<div style="font-size:8px;color:var(--gold);text-align:center;margin-bottom:8px">💼 TRADING FLOOR — พนักงาน ${Company.EMPLOYEES.length} คน <span style="font-size:6px;color:#9aa">(การ์ดเรืองแสง = กำลังออกไม้)</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-bottom:14px">${cards}</div>`;
   },
 
   render() {
@@ -3276,7 +3277,7 @@ const Company = {
       return `<div class="twr-emp${activePair?' active':''}" style="flex:1;min-width:200px;padding:8px;border:1px solid ${activePair?sigCol:'var(--border)'};border-radius:6px;background:${activePair?sigCol+'14':'rgba(255,255,255,0.02)'};position:relative;${activePair?`color:${sigCol};`:''}">
         ${bubble}
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-          <span class="twr-head" style="position:relative;display:inline-block;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;padding:1px;min-width:24px;min-height:32px">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:140%;image-rendering:pixelated;pointer-events:none"></span>
+          <span class="twr-head" style="position:relative;display:inline-block;overflow:hidden;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;width:30px;height:40px;vertical-align:middle">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;left:50%;top:0;transform:translateX(-50%);height:150%;image-rendering:pixelated;pointer-events:none"></span>
           <div style="line-height:1.25;min-width:0">
             <div style="font-size:10px;color:var(--gold);font-weight:bold">${e.name}${activePair?` <span style="font-size:7px;color:var(--green)">🎯 ${activePair.replace('USD','')}</span>`:''}${!this._BUILTIN_EMP.includes(e.id)?` <span onclick="event.stopPropagation();Company.removeEmployee('${e.id}')" title="ปลด" style="cursor:pointer;color:var(--red);font-size:8px">✕</span>`:''}</div>
             <div style="font-size:6px;color:#9aa">${combo.icon} ${combo.name} · ${combo.agents.map(k=>this._KEYMAP[k]||k).join('+')}</div>
