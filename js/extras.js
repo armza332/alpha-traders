@@ -2826,6 +2826,7 @@ const Company = {
     breakout:    { name:'Breakout',       icon:'🚀', agents:['breakout','utbot','pattern'],   desc:'เบรกกรอบ + เทรนด์หนุน + แท่งยืนยัน' },
     reversal_sr: { name:'Reversal @ S/R', icon:'🔄', agents:['pivot','rsi','pattern'],        desc:'ราคาถึงแนว S/R + RSI สุดขั้ว + แท่งกลับตัว' },
     wave:        { name:'Wave/Structure', icon:'🌊', agents:['elliott','fib','smc'],          desc:'นับ Elliott + Fib retrace + โครงสร้าง SMC' },
+    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','ichimoku','utbot','smc'], desc:'วินัยระดับกองทุน: เทรนด์หลัก MTF + เมฆ Ichimoku + UT-Bot ตามเทรนด์ + เข้าเฉพาะที่โครงสร้าง SMC — เข้าน้อยแต่แม่น เทรดตามเทรนด์เท่านั้น ตัดขาดทุนไว ปล่อยกำไรวิ่ง ไม่ไล่ราคา' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
@@ -2957,6 +2958,7 @@ const Company = {
     { id:'emp_bo', combo:'breakout',    name:'Blaze',  face:{skin:'#e9b48c',hair:'#3a2a1a',style:'spiky',acc:'visor',   accColor:'#ff4500'} },
     { id:'emp_rv', combo:'reversal_sr', name:'Ravi',   face:{skin:'#cd9b6a',hair:'#2a2a3a',style:'short',acc:'glasses', accColor:'#9370db'} },
     { id:'emp_wv', combo:'wave',        name:'Willa',  face:{skin:'#e3c9a0',hair:'#bfe0ff',style:'long', acc:'none',    accColor:'#00e5ff'} },
+    { id:'emp_cl', combo:'claude_elite',name:'Claude', face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
   ],
 
   // PHASE 25.1: beep when an employee fires (buy = rising, sell = falling)
@@ -3002,7 +3004,7 @@ const Company = {
       ce.forEach(e => { if (!this.EMPLOYEES.find(x => x.id === e.id)) this.EMPLOYEES.push(e); });
     } catch {}
   },
-  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv'],
+  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl'],
   addCombo() {
     const avail = Object.keys(this._KEYMAP).filter(k => k !== 'mtf');
     const name = prompt('ชื่อคอมโบใหม่ (เช่น "Gold Scalp X"):'); if (!name) return;
