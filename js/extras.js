@@ -1759,11 +1759,18 @@ const BotBridge = {
         Settings.set('riskPerTrade', newRisk);
         UI.addLog?.('CMD', 'Strategy', `🛡 แพ้ 4 ไม้ติด — ลด Risk ${curRisk}%→${newRisk}% อัตโนมัติ`);
       } else if (streak >= 5) {
-        // Auto-pause via EA command (silent — no confirm popup)
-        this.sendCommand('pause', { silent: true });
-        UI.addLog?.('CMD', 'Strategy', `🛑 แพ้ ${streak} ไม้ติด — สั่ง PAUSE บอท + แจ้ง CEO`);
-        if (typeof KeepAlive !== 'undefined') {
-          KeepAlive.notify('🛑 Strategy Officer', `แพ้ ${streak} ไม้ติด — Pause บอทอัตโนมัติ`, {});
+        // Phase 26: when bypass (data-collection) is ON, losing streaks are
+        // expected — don't auto-pause (it was fighting the user's data run).
+        const collecting = (typeof Settings !== 'undefined') && Settings.get('tradeWithoutKB', false);
+        if (collecting) {
+          UI.addLog?.('CMD', 'Strategy', `⚠️ แพ้ ${streak} ไม้ติด — แต่เปิด bypass (เก็บข้อมูล KB) อยู่ จึงไม่ pause`);
+        } else {
+          // Auto-pause via EA command (silent — no confirm popup)
+          this.sendCommand('pause', { silent: true });
+          UI.addLog?.('CMD', 'Strategy', `🛑 แพ้ ${streak} ไม้ติด — สั่ง PAUSE บอท + แจ้ง CEO`);
+          if (typeof KeepAlive !== 'undefined') {
+            KeepAlive.notify('🛑 Strategy Officer', `แพ้ ${streak} ไม้ติด — Pause บอทอัตโนมัติ`, {});
+          }
         }
       }
     }
