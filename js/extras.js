@@ -2826,7 +2826,7 @@ const Company = {
     breakout:    { name:'Breakout',       icon:'🚀', agents:['breakout','utbot','pattern'],   desc:'เบรกกรอบ + เทรนด์หนุน + แท่งยืนยัน' },
     reversal_sr: { name:'Reversal @ S/R', icon:'🔄', agents:['pivot','rsi','pattern'],        desc:'ราคาถึงแนว S/R + RSI สุดขั้ว + แท่งกลับตัว' },
     wave:        { name:'Wave/Structure', icon:'🌊', agents:['elliott','fib','smc'],          desc:'นับ Elliott + Fib retrace + โครงสร้าง SMC' },
-    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','ichimoku','utbot','smc'], desc:'วินัยระดับกองทุน: เทรนด์หลัก MTF + เมฆ Ichimoku + UT-Bot ตามเทรนด์ + เข้าเฉพาะที่โครงสร้าง SMC — เข้าน้อยแต่แม่น เทรดตามเทรนด์เท่านั้น ตัดขาดทุนไว ปล่อยกำไรวิ่ง ไม่ไล่ราคา' },
+    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','divergence','smc'], desc:'คัดจากสถิติ KB จริง: MTF คุมเทรนด์หลัก + Divergence (agent เดียวที่บวกทั้ง 3 คู่) + โครงสร้าง SMC — เข้าเฉพาะที่มีหลายปัจจัยยืนยัน เน้นคุณภาพ ตัดขาดทุนไว ปล่อยกำไรวิ่ง ไม่ไล่ราคา' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
