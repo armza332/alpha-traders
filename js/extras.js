@@ -3368,21 +3368,27 @@ const Company = {
   // Phase C: push each pair's BEST employee's combo to the EA (living roster).
   // The EA then trades that combo locally — so selecting/training/hiring on the
   // web flows straight into what the EA fires.
+  // Vetted default per pair = the SAME combo the EA already runs by default,
+  // so a push never downgrades the EA — it only changes once an employee has
+  // PROVEN (≥5 real trades) a better R.
+  _DEFAULT_EMP: { XAUUSD: 'emp_mr', AUDUSD: 'emp_rv', EURUSD: 'emp_wv' },
   pushCombosToEA() {
     if (typeof BotBridge === 'undefined' || !BotBridge.sendCommand) return;
     const lines = [];
     ['XAUUSD', 'AUDUSD', 'EURUSD'].forEach(sym => {
       const emps = this.EMPLOYEES.filter(e => e.sym === sym);
       if (!emps.length) return;
-      // pick the pair employee with the best real-trade R (fallback: first)
-      let best = emps[0], bestR = -1e9;
-      emps.forEach(e => { const st = this._employeeStats(e.id); if (st.R > bestR) { bestR = st.R; best = e; } });
+      // only let an employee win if it has enough proven trades (≥5 matched)
+      let best = null, bestR = -1e9;
+      emps.forEach(e => { const st = this._employeeStats(e.id); if (st.matched >= 5 && st.R > bestR) { bestR = st.R; best = e; } });
+      const proven = !!best;
+      if (!best) best = emps.find(e => e.id === this._DEFAULT_EMP[sym]) || emps[0];  // keep vetted default
       const combo = this.COMBOS[best.combo];
       if (!combo || !combo.agents) return;
       BotBridge.sendCommand('combo_' + sym + '_' + combo.agents.join('.'), { silent: true });
-      lines.push(`${sym.replace('USD', '')}→${best.name}(${combo.name})`);
+      lines.push(`${sym.replace('USD', '')}→${best.name}${proven ? '✓' : '(default)'}`);
     });
-    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')}`);
+    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')} (✓=พิสูจน์แล้ว ≥5 ไม้)`);
   },
   setSignalMode(m) {
     if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('mode_' + m, { silent: true });
