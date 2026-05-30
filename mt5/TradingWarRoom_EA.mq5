@@ -23,6 +23,8 @@ input string  Symbol2            = "EURUSDc";    // Secondary symbol
 input bool    EnableSymbol2      = true;          // Trade Symbol2 too
 input string  Symbol3            = "XAUUSDm";    // Third symbol (gold)
 input bool    EnableSymbol3      = false;         // Trade Symbol3 too (XAU — ระวัง spread!)
+input string  Symbol4            = "BTCUSDm";    // Fourth symbol (crypto — เทรด 24/7)
+input bool    EnableSymbol4      = false;         // Trade Symbol4 too (BTC — ต้องพอร์ตใหญ่พอ! lot ขั้นต่ำ exposure สูง)
 
 input group "=== STRATEGY ==="
 input ENUM_TIMEFRAMES Timeframe  = PERIOD_H1;    // Analysis TF (Swing default; Scalp uses ScalpTF below)
@@ -80,6 +82,7 @@ input string  WebhookURL         = "";            // Apps Script URL (paste afte
 input string  WebhookSecret      = "twr-secret";  // Match Apps Script secret
 input int     WebPushSec         = 30;            // Push status every N seconds (scalp = 15-30s)
 input string  WatchXAU           = "XAUUSDm";     // XAU symbol for price feed (Phase 12.3)
+input string  WatchBTC           = "BTCUSDm";     // 🪙 BTC symbol for price feed → web (Phase C.4; "" = off)
 input int     CommandPollSec     = 15;            // Poll web commands every N seconds (Phase 12.4)
 input bool    AllowRemoteControl = true;          // Allow Close All / Pause from web (Phase 12.4)
 input bool    AcceptWebSignals   = false;         // 🧠 Phase 13: Accept AI trade signals from web (KB-guided)
@@ -98,7 +101,7 @@ input bool    FirmSniperUseNews  = true;          // 🎯 Phase C.3: ใช้ N
 CTrade        trade;
 CPositionInfo posInfo;
 
-#define MAX_SYMS 3
+#define MAX_SYMS 4
 
 // Phase 12.8: Per-symbol scan state for dashboard
 struct ScanState {
@@ -188,6 +191,10 @@ int OnInit() {
    symbols[nActiveSyms++] = Symbol1;
    if (EnableSymbol2 && StringLen(Symbol2) > 0) symbols[nActiveSyms++] = Symbol2;
    if (EnableSymbol3 && StringLen(Symbol3) > 0) symbols[nActiveSyms++] = Symbol3;
+   if (EnableSymbol4 && StringLen(Symbol4) > 0) symbols[nActiveSyms++] = Symbol4;
+
+   // Phase C.4: make sure the BTC price-feed symbol is in Market Watch (even if not traded)
+   if (StringLen(WatchBTC) > 0) SymbolSelect(WatchBTC, true);
 
    // Phase 12.9: init runtime toggle = enabled for all active symbols
    for (int k = 0; k < MAX_SYMS; k++) runEnabled[k] = (k < nActiveSyms);
@@ -853,7 +860,7 @@ void UpdateDashboard() {
    DashLabel("WATCH_LBL", DASH_X+16, y+5, "LIVE WATCH", C'255,230,0', 7);
 
    // Phase 12.8: show trade symbols first (with scan state), then WatchXAU if not traded
-   string displayList[4];
+   string displayList[6];   // up to MAX_SYMS traded + WatchXAU + WatchBTC
    int displayCount = 0;
    bool watchXauIsTraded = false;
    for (int i = 0; i < nActiveSyms; i++) {
@@ -1146,10 +1153,10 @@ string BuildPriceEntry(string sym) {
 }
 
 string BuildPricesJson() {
-   string list[3] = {WatchXAU, Symbol1, Symbol2};
+   string list[4] = {WatchXAU, Symbol1, Symbol2, WatchBTC};
    string out = "{";
    bool first = true;
-   for (int i = 0; i < 3; i++) {
+   for (int i = 0; i < 4; i++) {
       if (StringLen(list[i]) == 0) continue;
       // Skip duplicates (e.g., if user puts Symbol1 in WatchXAU by mistake)
       bool dup = false;

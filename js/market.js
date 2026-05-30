@@ -231,11 +231,13 @@ class MarketEngine {
         if (norm.startsWith('XAU')) px.XAUUSD = mid;
         else if (norm.startsWith('AUD')) px.AUDUSD = mid;
         else if (norm.startsWith('EUR')) px.EURUSD = mid;
+        else if (norm.startsWith('BTC')) px.BTCUSD = mid;   // 🪙 from WatchBTC feed
       }
       // Fallback: keep existing if a symbol missing
       px.XAUUSD = px.XAUUSD || this.prices.XAUUSD;
       px.AUDUSD = px.AUDUSD || this.prices.AUDUSD;
       px.EURUSD = px.EURUSD || this.prices.EURUSD;
+      if (px.BTCUSD == null) delete px.BTCUSD;   // BTC optional — only anchor if EA sent it
       if (!isFinite(px.XAUUSD) || !isFinite(px.AUDUSD) || !isFinite(px.EURUSD)) return null;
       return px;
     } catch (e) {
