@@ -2384,6 +2384,7 @@ const Company = {
       this.refreshData();
     }
     this.mountFloor();      // build the walking floor once + keep loops alive
+    this._startJanie();     // proactive notifications (closed trades / drawdown)
     this._renderChat();
   },
 
@@ -2409,8 +2410,19 @@ const Company = {
     this._renderChat();
     const lower = q.toLowerCase();
 
-    // Commands stay deterministic (they actually execute on the EA)
-    if (this._isSecretaryCommand(lower)) { this._pushSec(this._secretaryRespond(lower)); return; }
+    // 1) Pending confirmation (approval pattern — risky actions ask first)
+    if (this._pendingAction) {
+      if (/ยืนยัน|ตกลง|^ok|ใช่|เอาเลย|จัดไป|confirm/i.test(lower)) {
+        const fn = this._pendingAction.run; this._pendingAction = null; this._pushSec(fn()); return;
+      }
+      if (/ยกเลิก|ไม่เอา|ไม่ต้อง|cancel|^no|หยุด/i.test(lower)) {
+        this._pendingAction = null; this._pushSec('ยกเลิกให้แล้วค่ะ ✅ ไม่ได้ทำอะไรนะคะ'); return;
+      }
+    }
+
+    // 2) Tool layer — deterministic actions that actually DO things (with guards)
+    const act = this._secretaryAction(lower, q);
+    if (act != null) { this._pushSec(act); return; }
 
     // Natural conversation via Groq (only if a key is on the bridge)
     if (typeof AIBridge !== 'undefined' && AIBridge.url()) {
@@ -2433,34 +2445,154 @@ const Company = {
     this._renderChat();
   },
 
+  // ─── PROACTIVE (C): Janie speaks up on closed trades + drawdown ───
+  _janieNote(text) {
+    this.chatLog = this.chatLog || [];
+    this.chatLog.push({ role: 'sec', text: '🔔 ' + text });
+    if (this.chatLog.length > 40) this.chatLog = this.chatLog.slice(-40);
+    if (document.getElementById('sec-chat-log')) this._renderChat();   // shows now if open; else when reopened
+  },
+  _janieProactiveTick() {
+    const bot = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    if (!bot) return;
+    const all = (typeof BotBridge !== 'undefined' && BotBridge.allTrades) ? BotBridge.allTrades : [];
+    const eq  = bot.equity || bot.balance || 0;
+    if (this._janieSeen === undefined) { this._janieSeen = { trades: all.length, peakEq: eq, warnedDD: false }; return; }
+    const s = this._janieSeen;
+    // new closed trade → report it
+    if (all.length > s.trades) {
+      const t = all[all.length - 1];
+      if (t && t.outcome && t.outcome !== 'breakeven') {
+        const r = parseFloat(t.rMult) || 0;
+        const sym = (t.sym || '').replace(/[mzcr.].*$/i, '');
+        this._janieNote(`${t.outcome === 'win' ? '🟢 ปิดไม้ได้กำไร' : '🔴 ปิดไม้ขาดทุน'}ค่ะ — ${sym} ${t.side || ''} ${r > 0 ? '+' : ''}${r.toFixed(2)}R ($${(t.profit || 0).toFixed(2)})`);
+      }
+      s.trades = all.length;
+    }
+    // drawdown alert (from session peak)
+    if (eq > s.peakEq) s.peakEq = eq;
+    const ddPct = s.peakEq > 0 ? (s.peakEq - eq) / s.peakEq * 100 : 0;
+    if (ddPct >= 8 && !s.warnedDD) { this._janieNote(`⚠️ เตือนค่ะ — equity ลดจากจุดสูงสุด ${ddPct.toFixed(1)}% (เหลือ $${eq.toFixed(2)}) ถ้าไม่สบายใจพิมพ์ "ปิดทุกไม้" ได้นะคะ`); s.warnedDD = true; }
+    if (ddPct < 4) s.warnedDD = false;   // reset once recovered
+  },
+  _startJanie() {
+    if (this._janieTimer) return;
+    this._janieTimer = setInterval(() => { try { this._janieProactiveTick(); } catch (e) {} }, 20000);
+  },
+
   _isSecretaryCommand(q) {
     return ['ปิดทุก','ปิดหมด','close all','ปิดออเดอร์','ปิดไม้','หยุดบอท','พักเทรด','pause',
             'หยุดเทรด','เริ่มเทรด','resume','ทำงานต่อ','ปลดล็อก','autopilot','auto pilot',
             'ออโต้','อัตโนมัติ','เปิดออโต้'].some(k => q.includes(k));
   },
 
+  // ─── TOOL LAYER (A): NL → real action, with confirm-guard on risky ones ───
+  _pendingAction: null,
+  _secretaryAction(q, raw) {
+    const has = (...kw) => kw.some(k => q.includes(k));
+    const ask = (msg, fn) => { this._pendingAction = { run: fn }; return msg + '\n\n👉 พิมพ์ "ยืนยัน" เพื่อทำ หรือ "ยกเลิก" ค่ะ'; };
+    const bridge = (typeof BotBridge !== 'undefined' && BotBridge.sendCommand);
+
+    // close all — needs confirmation (destructive)
+    if (has('ปิดทุก','ปิดหมด','close all','ปิดออเดอร์','ปิดไม้','เคลียร์ไม้'))
+      return ask('⚠️ จะให้ปิด *ทุกออเดอร์* ทันทีนะคะ', () => { if (bridge) BotBridge.sendCommand('close_all'); return '🔴 สั่งปิดทุกออเดอร์แล้วค่ะ — EA จะเคลียร์ภายใน ~15 วิ'; });
+    // pause / resume
+    if (has('หยุดบอท','พักเทรด','pause','หยุดเทรด')) { if (bridge) BotBridge.sendCommand('pause'); return '⏸ พักบอทแล้วค่ะ — ไม่เปิดไม้ใหม่ แต่ดูแลไม้เก่าต่อ'; }
+    if (has('เริ่มเทรด','resume','ทำงานต่อ','ปลดล็อก','เปิดบอท')) { if (bridge) BotBridge.sendCommand('resume'); return '▶️ บอทกลับมาเทรดต่อแล้วค่ะ'; }
+    // autopilot
+    if (has('เปิดออโต้','เปิด autopilot','เปิดอัตโนมัติ','เปิด auto')) { this.setAutoPilot(true); return '🤖 เปิด AUTO PILOT แล้วค่ะ — ทีมตัดสินใจเอง เจอ Grade A+ ส่ง EA ทันที'; }
+    if (has('ปิดออโต้','ปิด autopilot','ปิดอัตโนมัติ','ปิด auto')) { this.setAutoPilot(false); return '🛑 ปิด AUTO PILOT แล้วค่ะ — กลับมาโหมด CEO อนุมัติเอง'; }
+    // signal mode
+    if (has('โหมด both','ทั้งเว็บและ ea','โหมดทั้งคู่')) { this.setSignalMode('both'); return '🔀 สลับเป็นโหมด BOTH แล้วค่ะ (เว็บ + EA)'; }
+    if (has('โหมดเว็บ','โหมด web')) { this.setSignalMode('web'); return '🌐 สลับเป็นโหมด WEB แล้วค่ะ'; }
+    if (has('โหมด ea','ea คิดเอง')) { this.setSignalMode('ea'); return '⚡ สลับเป็นโหมด EA แล้วค่ะ'; }
+    // conf threshold  ("ตั้ง conf 80", "ความมั่นใจ 75")
+    const cm = q.match(/(?:conf|มั่นใจ|เกณฑ์)\D{0,8}(\d{2})/);
+    if (cm) { const v = parseInt(cm[1], 10); if (v >= 50 && v <= 95) { this.setTraderConf(v); return `🎯 ตั้ง conf ขั้นต่ำ = ${v}% แล้วค่ะ`; } }
+    // enable / disable a pair (incl BTC)
+    const pairs = [[/ทอง|gold|xau/i,'enableXAU','ทอง'],[/ยูโร|eur/i,'enableEUR','ยูโร'],[/ออส|aud|aussie/i,'enableAUD','ออสซี่'],[/btc|บิท|คริปโต|satoshi/i,'enableBTC','BTC']];
+    for (const [re, key, name] of pairs) {
+      if (re.test(raw || q)) {
+        // check ENABLE first — "เปิด" contains the substring "ปิด"
+        if (has('เปิด','on','ดูคู่'))             { Settings.set(key, true);  this.refresh(); return `✅ เปิดคู่ ${name} แล้วค่ะ`; }
+        if (has('ปิด','off','หยุดดู','เลิกดู'))   { Settings.set(key, false); this.refresh(); return `⛔ ปิดคู่ ${name} แล้วค่ะ — หยุดวิเคราะห์/ยิง`; }
+      }
+    }
+    // solo FirmSniper
+    if (has('firmsniper เดี่ยว','โหมดเดี่ยว','เฉพาะ firmsniper','ให้ firmsniper คนเดียว')) { this.setSoloEmployee('emp_fs'); return '🎯 โหมด FirmSniper เดี่ยวแล้วค่ะ — คนอื่นหยุดยิง'; }
+    // push combos to EA
+    if (has('ส่ง combo','อัปเดต ea','อัพเดท ea','อัปเดตสูตร')) { this.pushCombosToEA(); return '🧬 ส่งสูตรคนเก่งสุดให้ EA แล้วค่ะ'; }
+    // team report / who's best
+    if (has('ใครเก่ง','เก่งสุด','ผลงานพนักงาน','สรุปทีม','รายงานทีม','ท็อปฟอร์ม')) return this._teamReport();
+    // why is <name> not trading?
+    if (has('ทำไม') && (has('ไม่เทรด','ไม่ออก','ไม่เข้า','ไม่ยิง'))) {
+      const who = this.EMPLOYEES.find(e => q.includes(e.name.toLowerCase()));
+      if (who) return this._empWhyNot(who);
+    }
+    return null;   // not an action → let LLM / rule-based handle it
+  },
+  _teamReport() {
+    const rows = this.EMPLOYEES.map(e => ({ name: e.name, ...this._employeeStats(e.id) }))
+      .filter(r => r.matched > 0).sort((a, b) => b.R - a.R);
+    if (!rows.length) return 'ยังไม่มีผลงานที่จับคู่กับไม้จริงเลยค่ะ — รอเก็บสถิติก่อนนะคะ 📊';
+    const top = rows.slice(0, 3).map((r, i) => `${['🥇','🥈','🥉'][i]} ${r.name}: ${r.R > 0 ? '+' : ''}${r.R.toFixed(1)}R · WR ${r.wr}% (${r.matched} ไม้)`).join('\n');
+    const worst = rows[rows.length - 1];
+    return `🏆 ท็อปฟอร์มตอนนี้ค่ะ:\n${top}` + (rows.length > 3 ? `\n\n⚠️ ต้องจับตา: ${worst.name} (${worst.R.toFixed(1)}R)` : '');
+  },
+  _empWhyNot(emp) {
+    const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX, btc = TradingWarRoom?.lastBTC;
+    const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    const teamFor = (s) => s === 'XAUUSD' ? gold : s === 'AUDUSD' ? (fx && fx.aud) : s === 'EURUSD' ? (fx && fx.eur) : s === 'BTCUSD' ? btc : null;
+    const syms = emp.sym ? [emp.sym] : this._SYMS;
+    let best = null;
+    syms.forEach(s => { try { const d = this._empDecision(emp, s, teamFor(s), bot); if (!best || (d.approved && !best.approved) || (d.conf || 0) > (best.conf || 0)) best = d; } catch (_) {} });
+    if (!best) return `${emp.name} ยังไม่มีข้อมูลพอประเมินค่ะ`;
+    if (best.approved) return `จริง ๆ ${emp.name} ผ่านเกณฑ์แล้วค่ะ — ${best.signal.toUpperCase()} ${(best.sym||'').replace('USD','')} conf ${best.conf}% (เปิด "หัวหน้าโต๊ะยิงเอง" + autopilot ถึงจะยิงจริง)`;
+    return `${emp.name} ยังไม่ยิงเพราะ: ${best.blockedBy || 'ยังไม่เจอสัญญาณ'} ค่ะ${best.conf ? ` (conf ตอนนี้ ${best.conf}%)` : ''}`;
+  },
+  // ─── RICH CONTEXT (B): everything the LLM needs to answer grounded ───
+  _secretaryContext() {
+    const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    const live = (typeof BotBridge !== 'undefined' && BotBridge.liveStats) ? BotBridge.liveStats : { count:0, wins:0, losses:0, totalR:0 };
+    const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX, btc = TradingWarRoom?.lastBTC;
+    const teamFor = (s) => s === 'XAUUSD' ? gold : s === 'AUDUSD' ? (fx && fx.aud) : s === 'EURUSD' ? (fx && fx.eur) : s === 'BTCUSD' ? btc : null;
+    const firing = [], blocked = [];
+    this.EMPLOYEES.forEach(e => { try {
+      const syms = e.sym ? [e.sym] : this._SYMS; let best = null;
+      syms.forEach(s => { const d = this._empDecision(e, s, teamFor(s), bot); if (!best || (d.approved && !best.approved) || (d.conf||0) > (best.conf||0)) best = d; });
+      if (best) {
+        if (best.approved && (best.signal === 'buy' || best.signal === 'sell')) firing.push(`${e.name} ${best.signal.toUpperCase()} ${(best.sym||'').replace('USD','')} ${best.conf}%`);
+        else if (best.blockedBy) blocked.push(`${e.name}: ${best.blockedBy}`);
+      }
+    } catch (_) {} });
+    const ranked = this.EMPLOYEES.map(e => ({ name: e.name, ...this._employeeStats(e.id) })).filter(r => r.matched > 0).sort((a, b) => b.R - a.R);
+    const S = (typeof Settings !== 'undefined') ? Settings : { get: (k, d) => d };
+    return {
+      online: bot ? !!bot.online : false, balance: bot ? bot.balance : null, equity: bot ? bot.equity : null,
+      todayPnL: bot ? bot.todayPnL : null, openPositions: bot ? (bot.positions || []).length : null,
+      signalMode: S.get('signalMode', 'web'), confThreshold: S.get('traderMinConf', 80), autoPilot: S.get('autoPilot', false),
+      pairsOn: [['ทอง','enableXAU'],['AUD','enableAUD'],['EUR','enableEUR'],['BTC','enableBTC']].filter(([n, k]) => S.get(k, true)).map(([n]) => n),
+      marketOpen: { forex: this._marketOpen('EURUSD'), btc: this._marketOpen('BTCUSD') },
+      liveTrades: live.count, liveWR: (live.wins + live.losses) > 0 ? Math.round(live.wins / (live.wins + live.losses) * 100) : null, totalR: live.totalR,
+      topEmployees: ranked.slice(0, 3).map(r => `${r.name} ${r.R > 0 ? '+' : ''}${r.R.toFixed(1)}R/${r.wr}%`),
+      firingNow: firing, blockedNow: blocked.slice(0, 6),
+    };
+  },
   _secretarySystem() {
-    return 'คุณคือ "Janie" เลขาสาวของบริษัทเทรด Forex/Gold ชื่อ Alpha Traders. ' +
-      'พูดไทยสุภาพ เป็นกันเอง กระชับ ลงท้ายด้วย "ค่ะ". ตอบเรื่องสถานะพอร์ต กำไร/ขาดทุน สัญญาณ ' +
-      'และให้กำลังใจ CEO. ใช้เฉพาะตัวเลขจากข้อมูลที่ให้มาเท่านั้น ห้ามแต่งตัวเลขเอง ถ้าไม่มีข้อมูลให้บอกตรงๆ. ตอบสั้น 2-4 ประโยค.';
+    return 'คุณคือ "Janie" เลขาสาวของบริษัทเทรด Forex/Gold/BTC ชื่อ Alpha Traders. ' +
+      'พูดไทยสุภาพ เป็นกันเอง กระชับ ลงท้าย "ค่ะ". หน้าที่: รายงานสถานะ/กำไร/สัญญาณ, อธิบายว่าพนักงานคนไหนทำอะไร/ทำไมไม่เทรด, แนะนำ และให้กำลังใจ CEO. ' +
+      'คุณสั่งงานได้จริง (ปิดไม้/พัก/autopilot/สลับโหมด/ตั้ง conf/เปิด-ปิดคู่/FirmSniper เดี่ยว) — ถ้า CEO สั่ง ให้บอกว่าทำได้และแนะนำให้พิมพ์คำสั่งตรง ๆ. ' +
+      'ใช้เฉพาะตัวเลขจาก context ที่ให้มา ห้ามแต่งเอง ถ้าไม่มีให้บอกตรง ๆ. ตอบสั้น 2-4 ประโยค.';
   },
 
   _secretaryPrompt(userText) {
-    const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
-    const cmd  = (typeof TradingWarRoom !== 'undefined') ? TradingWarRoom.lastCmd : null;
-    const live = (typeof BotBridge !== 'undefined' && BotBridge.liveStats) ? BotBridge.liveStats : { count:0, wins:0, losses:0, totalR:0 };
-    const ctx = {
-      online: bot ? !!bot.online : false,
-      balance: bot ? bot.balance : null, equity: bot ? bot.equity : null,
-      todayPnL: bot ? bot.todayPnL : null, wins: bot ? bot.todayWins : null, losses: bot ? bot.todayLosses : null,
-      openPositions: bot ? (bot.positions || []).length : null, mode: bot ? bot.mode : null,
-      lastSignal: (cmd && (cmd.signal === 'buy' || cmd.signal === 'sell'))
-        ? { sym: cmd.sym, dir: cmd.signal, grade: cmd.gradeInfo?.grade, conf: cmd.conf, entry: cmd.entry } : null,
-      liveTrades: live.count,
-      liveWR: (live.wins + live.losses) > 0 ? Math.round(live.wins / (live.wins + live.losses) * 100) : null,
-      totalR: live.totalR,
-    };
-    return 'ข้อมูลบริษัทล่าสุด (JSON): ' + JSON.stringify(ctx) + '\n\nคำถามจาก CEO: ' + userText;
+    let ctx;
+    try { ctx = this._secretaryContext(); }
+    catch (e) {
+      const bot = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+      ctx = { online: bot ? !!bot.online : false, balance: bot ? bot.balance : null, todayPnL: bot ? bot.todayPnL : null };
+    }
+    return 'context บริษัทล่าสุด (JSON): ' + JSON.stringify(ctx) + '\n\nคำถาม/คำสั่งจาก CEO: ' + userText;
   },
 
   _secretaryRespond(q) {
@@ -2557,7 +2689,7 @@ const Company = {
       return `${greet} ดิฉัน Janie เลขาประจำบริษัทค่ะ\nถามได้เลยนะคะ: "สถานะ", "กำไร", "ทำไมไม่เทรด", "ทอง/EUR/AUD เป็นไง", "เปิด autopilot" หรือพิมพ์ "ช่วย"`;
     }
     if (has('ช่วย','help','ทำอะไรได้','คำสั่ง','เมนู')) {
-      return 'ดิฉันช่วยได้หลายอย่างค่ะ:\n📊 "สถานะ" / "กำไร" — รายงานบัญชี\n🔍 "ทำไมไม่เทรด" — อธิบายสถานการณ์\n💎 "ทอง/EUR/AUD เป็นไง" — ถามแต่ละ trader\n🛡 "risk" — ความเสี่ยงพอร์ต\n🔴 "ปิดทุกไม้" / "หยุดบอท" / "เริ่มเทรด" — สั่งงานทีม\n🤖 "เปิด autopilot" — ให้ทีมตัดสินใจเอง\n🧠 "กลยุทธ์" — ประสานทีมกลยุทธ์';
+      return 'ดิฉันช่วยได้หลายอย่างค่ะ:\n📊 "สถานะ" / "กำไร" / "risk" — รายงานบัญชี/ความเสี่ยง\n🏆 "ใครเก่งสุด" — จัดอันดับผลงานพนักงาน\n🔍 "ทำไม Satoshi ไม่เทรด" — อธิบายรายคน\n💎 "ทอง/EUR/AUD/BTC เป็นไง" — ถามแต่ละ trader\n— สั่งงานได้จริง —\n🔴 "ปิดทุกไม้" (ถามยืนยันก่อน) · "หยุดบอท" · "เริ่มเทรด"\n🤖 "เปิด/ปิด autopilot" · 🔀 "โหมด both/web/ea"\n🎯 "ตั้ง conf 80" · "เปิด/ปิดคู่ BTC" · "FirmSniper เดี่ยว"\n🧬 "ส่ง combo ให้ EA"';
     }
 
     // ─── Fallback (smarter — guess intent) ───
@@ -3792,7 +3924,7 @@ const Company = {
               <button class="btn btn-primary" style="font-size:10px;padding:8px 14px" onclick="Company.sendChat()">ส่ง</button>
             </div>
             <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
-              ${['สถานะ','กำไร','ทำไมไม่เทรด','สัญญาณ','risk','autopilot','ช่วย'].map(s =>
+              ${['สถานะ','กำไร','ใครเก่งสุด','ทำไมไม่เทรด','สัญญาณ','risk','autopilot','ช่วย'].map(s =>
                 `<button class="btn btn-secondary" style="font-size:8px;padding:3px 6px" onclick="Company.askSecretary('${s}')">${s}</button>`
               ).join('')}
             </div>
