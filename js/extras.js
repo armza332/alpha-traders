@@ -3810,7 +3810,7 @@ const Company = {
       </div>`;
     }).join('');
     return `<div style="position:relative;width:100%;max-width:940px;margin:0 auto 12px;border-radius:8px;overflow:hidden;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,.55)">
-      <img src="assets/room-bg.png?v=41" style="width:100%;display:block;image-rendering:pixelated">
+      <img src="assets/room-bg.png?v=55" style="width:100%;display:block;image-rendering:pixelated">
       <div style="position:absolute;left:12px;top:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Live Floor</div>
       ${figs}
     </div>`;

@@ -1,21 +1,21 @@
 // ════════════════════════════════════════════════════════════════════
-//  SPRITE SLICER (Phase 26.5) — crop the team-card roster sheet into
+//  SPRITE SLICER (Phase 26.6) — crop the team sprite sheet into
 //  per-character avatars, entirely in the browser (Canvas).
 //
-//  Sheet: assets/team-cards.png (960×1111) — a 5×4 grid of character
-//  cards (portrait on top, name band below). We crop ONLY the character
-//  region of each card (skip the name band + frame) and key out the
-//  gray gutter so the figure sits cleanly on the dark desk panel.
+//  Sheet: assets/team-cards.png (960×1111) — a 5×4 grid of FULL-BODY
+//  characters on a gray checker background. We crop each character's
+//  exact bounding box (head→feet) and key out the gray so the figure
+//  sits cleanly on the dark desk panel.
 //  Each employee carries sprite:[col,row]  (col 0-4, row 0-3).
 // ════════════════════════════════════════════════════════════════════
 const SpriteSlicer = {
-  SHEET: 'assets/team-cards.png?v=54',
-  // grid geometry in SOURCE pixels (relative to a 960×1111 sheet)
+  SHEET: 'assets/team-cards.png?v=55',
+  // grid geometry in SOURCE pixels (relative to a 960×1111 sheet).
+  // Per-column X span and per-row Y span of the character bounding boxes.
   BASE_W: 960, BASE_H: 1111,
-  XE: [18, 203, 388, 573, 758, 943],   // 5 columns → 6 vertical edges
-  YE: [80, 328, 593, 851, 1080],       // 4 rows    → 5 horizontal edges
-  COLS: 5, ROWS: 4,
-  INSET_X: 14, TOP_PAD: 10, CHAR_FRAC: 0.62,  // crop just the character (skip name band)
+  COLX: [[97, 170], [271, 346], [444, 520], [618, 693], [793, 867]],
+  ROWY: [[79, 278], [343, 547], [611, 815], [865, 1067]],
+  COLS: 5, ROWS: 4, PAD: 12,
   _img: null, _ready: false, _cache: {},
 
   load(cb) {
@@ -38,11 +38,9 @@ const SpriteSlicer = {
 
     const W = this._img.naturalWidth, H = this._img.naturalHeight;
     const sx = W / this.BASE_W, sy = H / this.BASE_H;   // scale if served size differs
-    const x0 = (this.XE[col]     + this.INSET_X) * sx;
-    const x1 = (this.XE[col + 1] - this.INSET_X) * sx;
-    const rTop = this.YE[row], rh = this.YE[row + 1] - this.YE[row];
-    const y0 = (rTop + this.TOP_PAD) * sy;
-    const y1 = (rTop + Math.round(rh * this.CHAR_FRAC)) * sy;
+    const cx = this.COLX[col], ry = this.ROWY[row];
+    const x0 = (cx[0] - this.PAD) * sx, x1 = (cx[1] + this.PAD) * sx;
+    const y0 = (ry[0] - this.PAD) * sy, y1 = (ry[1] + this.PAD) * sy;
     const srcW = x1 - x0, srcH = y1 - y0;
 
     const cv = document.createElement('canvas');
@@ -53,9 +51,9 @@ const SpriteSlicer = {
       const id = ctx.getImageData(0, 0, cv.width, cv.height), d = id.data;
       for (let i = 0; i < d.length; i += 4) {
         const r = d[i], g = d[i + 1], b = d[i + 2];
-        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-        // gray-gutter key: flat gray ~73 (low saturation, mid brightness) → transparent
-        if ((mx - mn) < 16 && r > 56 && r < 100) d[i + 3] = 0;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), br = (r + g + b) / 3;
+        // gray-checker key: flat gray (low saturation, mid brightness) → transparent
+        if ((mx - mn) < 18 && br > 48 && br < 112) d[i + 3] = 0;
       }
       ctx.putImageData(id, 0, 0);
       const url = cv.toDataURL('image/png');
