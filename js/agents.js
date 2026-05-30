@@ -1574,6 +1574,52 @@ class CurrencyTeam {
 }
 
 /* ═══════════════════════════════════════════════════════
+   ₿ CRYPTO DESK — BTCUSD (24/7, trades weekends too)
+   Single-symbol team; computes the full agent set so any combo works.
+   ═══════════════════════════════════════════════════════ */
+class BtcTeam {
+  constructor() {
+    this.name = 'CRYPTO DESK'; this.symbol = 'BTCUSD'; this.icon = '₿'; this.color = 'orange';
+    const S = 'BTCUSD';
+    this.head       = new HeadAgent('Maj.BTC', 'BTC', 'BTCUSD');
+    this.smc        = new SMCAgent(S);
+    this.elliott    = new ElliottWaveAgent(S);
+    this.fib        = new FibonacciAgent(S);
+    this.rsi        = new RSIValueAgent(S);
+    this.macd       = new MACDAgent(S);
+    this.bollinger  = new BollingerAgent(S);
+    this.pattern    = new PatternAgent(S);
+    this.divergence = new DivergenceAgent(S);
+    this.mtf        = new MTFAgent(S, 'BTCUSD');
+    this.ichimoku   = new IchimokuAgent(S);
+    this.dxy        = new DXYAgent(S);
+    this.utbot      = new UTBotAgent(S);
+    this.orderblock = new OrderBlockAgent(S);
+    this.sweep      = new SweepAgent(S);
+    this.breakout   = new BreakoutAgent(S);
+    this.fvg        = new FVGAgent(S);
+    this.sniper     = new PropFirmSniperAgent(S, ['BTC', 'USD']);
+  }
+  analyze(data, market) {
+    const a = {}, reps = [];
+    const P = (k, r) => { a[k] = r; reps.push(r); };
+    P('smc', this.smc.analyze(data));         P('elliott', this.elliott.analyze(data));
+    P('fib', this.fib.analyze(data));         P('rsi', this.rsi.analyze(data));
+    P('macd', this.macd.analyze(data));       P('bollinger', this.bollinger.analyze(data));
+    P('pattern', this.pattern.analyze(data)); P('divergence', this.divergence.analyze(data));
+    if (market) P('mtf', this.mtf.analyze(data, market));
+    P('ichimoku', this.ichimoku.analyze(data)); P('dxy', this.dxy.analyze(data));
+    P('utbot', this.utbot.analyze(data));     P('orderblock', this.orderblock.analyze(data));
+    P('sweep', this.sweep.analyze(data));     P('breakout', this.breakout.analyze(data));
+    P('fvg', this.fvg.analyze(data));         P('sniper', this.sniper.analyze(data));
+    const agg = this.head.aggregate(reps);
+    return { team: this.name, symbol: this.symbol, icon: this.icon, color: this.color,
+             head: { signal: agg.signal, conf: agg.conf, votes: agg.votes },
+             agents: a, price: data.price, cfg: data.cfg };
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    COMMANDER — Final Orchestrator
    ═══════════════════════════════════════════════════════ */
 class Commander {

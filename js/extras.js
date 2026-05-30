@@ -2156,14 +2156,14 @@ const Office = {
     if (typeof Company === 'undefined') return '';
     Company._initCustom(); Company._injectFX();
     const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX;
-    const teamFor = (sym) => sym === 'XAUUSD' ? gold : sym === 'AUDUSD' ? fx?.aud : fx?.eur;
+    const teamFor = (sym) => sym === 'XAUUSD' ? gold : sym === 'AUDUSD' ? fx?.aud : sym === 'EURUSD' ? fx?.eur : (typeof TradingWarRoom !== 'undefined' ? TradingWarRoom.lastBTC : null);
     const bot = BotBridge?.lastStatus;
     const winners = Company._pairWinners(teamFor, bot);
     const winnerOf = (id) => Object.keys(winners).find(s => winners[s] && winners[s].emp.id === id);
     const cards = Company.EMPLOYEES.map(e => {
       const combo = Company.COMBOS[e.combo] || { icon:'', name:'' };
       let best = null;
-      ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { if (e.sym && e.sym !== s) return; const d = Company._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
+      Company._SYMS.forEach(s => { if (e.sym && e.sym !== s) return; const d = Company._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const active = winnerOf(e.id);
       const sig  = best ? best.signal : 'wait';
       const conf = best ? (best.conf || 0) : 0;
@@ -2848,6 +2848,8 @@ const Company = {
     blackglacier: { name:'BlackGlacier Gold', icon:'🧊', agents:['mtf','ichimoku','orderblock','sweep'], desc:'ทองระดับกองทุน: MTF คุมเทรนด์ + Ichimoku เมฆ/regime + Order Block โซนสถาบัน + Sweep กวาด liquidity — ยืนยัน 4 ชั้น เข้าน้อยมากแต่แม่น มีวินัยสุด ไม่ออกซิกมั่ว' },
     // ── FirmSniper: prop-firm challenge specialist — hard-filter 5-layer confluence (single mega-agent) ──
     firm_sniper:  { name:'Firm Sniper', icon:'🎯', agents:['sniper'], desc:'พนักงานสอบกองทุน: hard filter 5 ชั้นพร้อมกัน — (1)ไม่มีข่าวแรง (2)Liquidity Sweep (3)โซน Discount/Premium (4)Order Block+FVG (5)Macro DXY ไม่สวน → ยิงเฉพาะ confluence เต็ม conf 95 ออกน้อยมาก winrate สูง drawdown ต่ำ เหมาะผ่าน challenge (ดีสุดในโหมด WEB/BOTH เพราะใช้ DXY+ข่าว)' },
+    // ── BTC crypto desk — trades 24/7 incl. weekends; trend + momentum + breakout ──
+    btc_trend:    { name:'Crypto Momentum', icon:'₿', agents:['utbot','breakout','mtf'], desc:'BTC 24/7: UT-Bot คุมเทรนด์ + Breakout เบรกกรอบ + MTF ยืนยันหลาย TF — เหมาะคริปโตที่วิ่งแรง/เทรนด์ชัด ออกซิกได้เสาร์-อาทิตย์ (ตลาดคริปโตไม่ปิด)' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.
@@ -2987,6 +2989,8 @@ const Company = {
     { id:'emp_cl', combo:'claude_elite',name:'Claude', sprite:[0,0], face:{skin:'#e9b48c',hair:'#1a1a22',style:'short',acc:'headset', accColor:'#ff9d3c'} },
     // 🎯 prop-firm specialist — floating elite, hard-filter sniper (takes any FX pair on perfect confluence)
     { id:'emp_fs', combo:'firm_sniper', name:'FirmSniper', sprite:[0,1], face:{skin:'#d8b48c',hair:'#14181f',style:'short',acc:'glasses', accColor:'#36e08f'} },
+    // ₿ crypto desk — BTCUSD, trades weekends (24/7 market)
+    { id:'emp_bt', sym:'BTCUSD', combo:'btc_trend', name:'Satoshi', sprite:[4,1], face:{skin:'#e9b48c',hair:'#e08a2a',style:'short',acc:'visor', accColor:'#f7931a'} },
   ],
 
   // PHASE 25.1: beep when an employee fires (buy = rising, sell = falling)
@@ -3032,7 +3036,8 @@ const Company = {
       ce.forEach(e => { if (!this.EMPLOYEES.find(x => x.id === e.id)) this.EMPLOYEES.push(e); });
     } catch {}
   },
-  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl','emp_bg','emp_fs'],
+  _BUILTIN_EMP: ['emp_mr','emp_tr','emp_sm','emp_bo','emp_rv','emp_wv','emp_cl','emp_bg','emp_fs','emp_bt'],
+  _SYMS: ['XAUUSD','AUDUSD','EURUSD','BTCUSD'],   // all desks employees can compete on (BTC = 24/7)
   addCombo() {
     const avail = Object.keys(this._KEYMAP).filter(k => k !== 'mtf');
     const name = prompt('ชื่อคอมโบใหม่ (เช่น "Gold Scalp X"):'); if (!name) return;
@@ -3151,7 +3156,7 @@ const Company = {
   _pairWinners(teamFor, bot) {
     const solo = (typeof Settings !== 'undefined') ? Settings.get('soloEmployee', '') : '';
     const winners = {};
-    ['XAUUSD','AUDUSD','EURUSD'].forEach(sym => {
+    this._SYMS.forEach(sym => {
       let best = null;
       this.EMPLOYEES.forEach(e => {
         if (solo && e.id !== solo) return;    // 🎯 solo mode: only the chosen employee may fire
@@ -3275,13 +3280,13 @@ const Company = {
     this._initCustom();
     this._injectFX();
     const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX;
-    const teamFor = (sym) => sym === 'XAUUSD' ? gold : sym === 'AUDUSD' ? fx?.aud : fx?.eur;
+    const teamFor = (sym) => sym === 'XAUUSD' ? gold : sym === 'AUDUSD' ? fx?.aud : sym === 'EURUSD' ? fx?.eur : (typeof TradingWarRoom !== 'undefined' ? TradingWarRoom.lastBTC : null);
     const bot = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
     const winners = this._pairWinners(teamFor, bot);
-    const symEm = { XAUUSD:'🥇', AUDUSD:'🇦🇺', EURUSD:'🇪🇺' };
+    const symEm = { XAUUSD:'🥇', AUDUSD:'🇦🇺', EURUSD:'🇪🇺', BTCUSD:'₿' };
 
     // winner banner
-    const wBanner = ['XAUUSD','AUDUSD','EURUSD'].map(s => {
+    const wBanner = this._SYMS.map(s => {
       const w = winners[s];
       return `<span style="font-size:7px;margin-right:12px">${symEm[s]} ${s.replace('USD','')}: ${w ? `<b style="color:var(--green)">${w.emp.name}</b> ${w.signal==='buy'?'▲':'▼'} G${w.grade}` : '<span style="color:#778">— รอ —</span>'}</span>`;
     }).join('');
@@ -3292,7 +3297,7 @@ const Company = {
       const combo = this.COMBOS[e.combo];
       // best decision across pairs (for display)
       let best = null;
-      ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { if (e.sym && e.sym !== s) return; const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
+      this._SYMS.forEach(s => { if (e.sym && e.sym !== s) return; const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const st = this._employeeStats(e.id);
       const activePair = winnerOf(e.id);
       const mktClosed = best && best.blockedBy && best.blockedBy.indexOf('ตลาดปิด') >= 0;
@@ -3444,12 +3449,12 @@ const Company = {
     if (!Settings.get('traderDrivenSignals', false)) return;
     if (!Settings.get('webAISignalsToEA', false)) return;   // respect master switch
     const bot = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
-    const teamFor = (sym) => sym === 'XAUUSD' ? goldR : sym === 'AUDUSD' ? fxR?.aud : fxR?.eur;
+    const teamFor = (sym) => sym === 'XAUUSD' ? goldR : sym === 'AUDUSD' ? fxR?.aud : sym === 'EURUSD' ? fxR?.eur : (typeof TradingWarRoom !== 'undefined' ? TradingWarRoom.lastBTC : null);
     const now = Date.now();
     const COOLDOWN = 15 * 60 * 1000;
     // Phase 24: the winning EMPLOYEE (best combo) fires for each pair + audit log
     const winners = this._pairWinners(teamFor, bot);
-    ['XAUUSD','AUDUSD','EURUSD'].forEach(sym => {
+    this._SYMS.forEach(sym => {
       const d = winners[sym];
       if (!d) return;
       const last = this._lastTraderFire[sym];
@@ -3511,7 +3516,7 @@ const Company = {
   renderTraders() {
     const gold = TradingWarRoom?.lastGold;
     const fx   = TradingWarRoom?.lastFX;
-    const teamFor = (sym) => sym === 'XAUUSD' ? gold : sym === 'AUDUSD' ? fx?.aud : fx?.eur;
+    const teamFor = (sym) => sym === 'XAUUSD' ? gold : sym === 'AUDUSD' ? fx?.aud : sym === 'EURUSD' ? fx?.eur : (typeof TradingWarRoom !== 'undefined' ? TradingWarRoom.lastBTC : null);
     const bal = BotBridge?.lastStatus?.balance || Settings.get('accountSize', 30);
 
     let html = this.liveScorecard() + this._presetBar() + this.renderEmployeeBoard() + this.auditPanel();
@@ -3798,18 +3803,18 @@ const Company = {
   ROOM_POS: {
     emp_mr: { x:16, y:62 }, emp_sm: { x:38, y:74 }, emp_tr: { x:55, y:54 },
     emp_rv: { x:69, y:40 }, emp_wv: { x:82, y:50 }, emp_bo: { x:90, y:63 },
-    emp_cl: { x:47, y:88 }, emp_fs: { x:28, y:90 }, emp_bg: { x:24, y:46 },
+    emp_cl: { x:47, y:88 }, emp_fs: { x:28, y:90 }, emp_bg: { x:24, y:46 }, emp_bt: { x:62, y:88 },
   },
   renderPixelRoom() {
     const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX;
     const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
-    const teamFor = (s) => s === 'XAUUSD' ? gold : s === 'AUDUSD' ? (fx && fx.aud) : (fx && fx.eur);
+    const teamFor = (s) => s === 'XAUUSD' ? gold : s === 'AUDUSD' ? (fx && fx.aud) : s === 'EURUSD' ? (fx && fx.eur) : (typeof TradingWarRoom !== 'undefined' ? TradingWarRoom.lastBTC : null);
     const figs = this.EMPLOYEES.map(e => {
       const pos = this.ROOM_POS[e.id] || { x:50, y:50 };
       let sig = 'wait', conf = 0;
       try {
         if (e.sym) { const d = this._empDecision(e, e.sym, teamFor(e.sym), bot); sig = d.signal; conf = d.conf || 0; }
-        else ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { const d = this._empDecision(e, s, teamFor(s), bot); if ((d.conf||0) > conf) { conf = d.conf||0; sig = d.signal; } });
+        else this._SYMS.forEach(s => { const d = this._empDecision(e, s, teamFor(s), bot); if ((d.conf||0) > conf) { conf = d.conf||0; sig = d.signal; } });
       } catch (_) {}
       const dirActive = (sig === 'buy' || sig === 'sell');
       const isCombo = conf >= 90 && dirActive;

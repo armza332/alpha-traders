@@ -18,6 +18,7 @@ const TradingWarRoom = {
     this.market    = new MarketEngine();
     this.goldTeam  = new GoldTeam();
     this.fxTeam    = new CurrencyTeam();
+    this.btcTeam   = new BtcTeam();      // ₿ 24/7 crypto desk
     this.commander = new Commander();
 
     // First render
@@ -191,6 +192,7 @@ const TradingWarRoom = {
     // Phase 15.1: stash latest reports for Company View
     this.lastGold = goldR;
     this.lastFX   = fxR;
+    try { this.lastBTC = this.btcTeam.analyze(this.market.getData('BTCUSD'), this.market); } catch (e) { this.lastBTC = null; }
     this.lastCmd  = cmdR;
     if (typeof Company !== 'undefined' && document.getElementById('modal-company')?.style.display === 'flex') {
       Company.refresh();

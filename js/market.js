@@ -111,6 +111,7 @@ class MarketEngine {
       XAUUSD: { base: 4571.00, pip: 0.01,  digits: 3, atr: 8.5,   trend: 0.0002 },
       AUDUSD: { base: 0.6452,  pip: 0.0001, digits: 5, atr: 0.0035, trend: 0.00001 },
       EURUSD: { base: 1.0853,  pip: 0.0001, digits: 5, atr: 0.0055, trend: -0.00001 },
+      BTCUSD: { base: 108000,  pip: 1,      digits: 2, atr: 1800,   trend: 0.0003 },   // 24/7 crypto desk
     };
 
     this.candles  = {};
