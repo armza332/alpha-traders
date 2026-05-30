@@ -28,11 +28,12 @@ const SpriteSlicer = {
     this._img = img;
   },
 
-  // crop card (col,row) → transparent dataURL (cached)
-  crop(col, row) {
+  // crop a character (col,row) → transparent dataURL (cached).
+  // half=true → upper body only (head+torso) for small portrait avatars.
+  crop(col, row, half) {
     col = Math.max(0, Math.min(this.COLS - 1, col | 0));
     row = Math.max(0, Math.min(this.ROWS - 1, row | 0));
-    const key = col + '_' + row;
+    const key = col + '_' + row + (half ? '_h' : '');
     if (this._cache[key]) return this._cache[key];
     if (!this._ready || !this._img) return null;
 
@@ -40,7 +41,10 @@ const SpriteSlicer = {
     const sx = W / this.BASE_W, sy = H / this.BASE_H;   // scale if served size differs
     const cx = this.COLX[col], ry = this.ROWY[row];
     const x0 = (cx[0] - this.PAD) * sx, x1 = (cx[1] + this.PAD) * sx;
-    const y0 = (ry[0] - this.PAD) * sy, y1 = (ry[1] + this.PAD) * sy;
+    const y0 = (ry[0] - this.PAD) * sy;
+    // full body → to feet; half body → ~55% down (head + torso)
+    const fullBot = (ry[1] + this.PAD) * sy;
+    const y1 = half ? (y0 + (fullBot - y0) * 0.55) : fullBot;
     const srcW = x1 - x0, srcH = y1 - y0;
 
     const cv = document.createElement('canvas');
@@ -67,7 +71,7 @@ const SpriteSlicer = {
     if (!this._ready) { this.load(() => this.fillAvatars()); return; }
     document.querySelectorAll('img.twr-ava[data-sc]').forEach(el => {
       if (el.dataset.done) return;
-      const url = this.crop(parseInt(el.dataset.sc, 10), parseInt(el.dataset.sr, 10));
+      const url = this.crop(parseInt(el.dataset.sc, 10), parseInt(el.dataset.sr, 10), el.dataset.half === '1');
       if (url) { el.src = url; el.dataset.done = '1'; }
     });
   },

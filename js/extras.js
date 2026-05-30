@@ -3104,6 +3104,17 @@ const Company = {
   },
 
   // One employee's decision on a pair (their combo + same gates as deskDecision)
+  // Is the market open for this symbol now? Forex/metals close on the weekend
+  // (Fri 22:00 → Sun 22:00 UTC); crypto (BTC/ETH) trades 24/7.
+  _marketOpen(sym) {
+    const s = (sym || '').toUpperCase();
+    if (/BTC|ETH|LTC|XRP|DOGE|SOL|USDT|CRYPTO/.test(s)) return true;   // 24/7
+    const now = new Date(), day = now.getUTCDay(), h = now.getUTCHours();
+    if (day === 6) return false;             // Saturday — closed
+    if (day === 0 && h < 22) return false;   // Sunday before 22:00 UTC
+    if (day === 5 && h >= 22) return false;  // Friday after 22:00 UTC
+    return true;
+  },
   _empDecision(emp, sym, teamData, bot) {
     const combo = this.COMBOS[emp.combo];
     const live = this._traderSignal(teamData, combo.agents);
@@ -3112,6 +3123,7 @@ const Company = {
     const minConf = (typeof Settings !== 'undefined') ? Settings.get('traderMinConf', 80) : 80;
     const out = { emp, combo, sym, live, rec, wr, signal: live.signal, conf: live.conf, grade: '-', approved: false, blockedBy: null };
     if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
+    if (!this._marketOpen(sym)) { out.blockedBy = '🌙 ตลาดปิด (เสาร์-อาทิตย์)'; return out; }
     const bypassKB = (typeof Settings !== 'undefined') && Settings.get('tradeWithoutKB', false);
     const fullAgree = live.n > 0 && (live.buy === live.n || live.sell === live.n);
     let grade = 'C';
@@ -3283,11 +3295,12 @@ const Company = {
       ['XAUUSD','AUDUSD','EURUSD'].forEach(s => { if (e.sym && e.sym !== s) return; const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const st = this._employeeStats(e.id);
       const activePair = winnerOf(e.id);
-      const sig = best ? best.signal : 'wait';
-      const sigCol = sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
-      const sigTxt = sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
-      const head = (typeof UI !== 'undefined' && UI.pixelFace) ? UI.pixelFace(e.face, 34)
-        : `<div style="width:34px;height:34px;background:${e.face.accColor}33;display:flex;align-items:center;justify-content:center;color:${e.face.accColor};font-weight:bold">${e.name[0]}</div>`;
+      const mktClosed = best && best.blockedBy && best.blockedBy.indexOf('ตลาดปิด') >= 0;
+      const sig = (best && !mktClosed) ? best.signal : 'wait';
+      const sigCol = mktClosed ? '#7c8aa5' : sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
+      const sigTxt = mktClosed ? '🌙 ปิด' : sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
+      // fallback shown only until the sprite half-body loads (then it covers this)
+      const head = `<span style="font-size:13px;font-weight:bold;color:${e.face.accColor}">${e.name[0]}</span>`;
       const stCol = st.R > 0 ? 'var(--green)' : st.R < 0 ? 'var(--red)' : '#9aa';
       const ratingStars = st.matched >= 3 ? (st.wr >= 60 ? '⭐⭐⭐' : st.wr >= 45 ? '⭐⭐' : '⭐') : '—';
       const bubble = activePair ? `<div class="twr-bubble" style="background:${sigCol}">${sig==='buy'?'▲ BUY':'▼ SELL'} ${activePair.replace('USD','')}!</div>` : '';
@@ -3307,7 +3320,7 @@ const Company = {
       return `<div class="twr-emp${activePair?' active':''}" style="flex:1;min-width:200px;padding:8px;border:1px solid ${activePair?sigCol:'var(--border)'};border-radius:6px;background:${activePair?sigCol+'14':'rgba(255,255,255,0.02)'};position:relative;${activePair?`color:${sigCol};`:''}">
         ${bubble}
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-          <span class="twr-head" style="position:relative;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:4px;width:32px;height:44px;vertical-align:middle">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="position:absolute;height:100%;width:auto;image-rendering:pixelated;pointer-events:none"></span>
+          <span class="twr-head" style="position:relative;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:5px;width:40px;height:46px;flex:none;vertical-align:middle">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" data-half="1" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center top;image-rendering:pixelated;pointer-events:none"></span>
           <div style="line-height:1.25;min-width:0">
             <div style="font-size:10px;color:var(--gold);font-weight:bold">${e.name}${activePair?` <span style="font-size:7px;color:var(--green)">🎯 ${activePair.replace('USD','')}</span>`:''}${!this._BUILTIN_EMP.includes(e.id)?` <span onclick="event.stopPropagation();Company.removeEmployee('${e.id}')" title="ปลด" style="cursor:pointer;color:var(--red);font-size:8px">✕</span>`:''}</div>
             <div style="font-size:6px;color:#9aa">${combo.icon} ${combo.name} · ${combo.agents.map(k=>this._KEYMAP[k]||k).join('+')}</div>
