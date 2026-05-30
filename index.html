@@ -75,7 +75,7 @@
   <div class="header-right">
     <button class="hdr-btn" onclick="Modal.open('backtest')" data-i18n="btn.backtest" data-i18n-title="bt.title">🔬 BACKTEST</button>
     <button class="hdr-btn" onclick="Modal.open('journal')" data-i18n="btn.journal">📓 JOURNAL</button>
-    <button class="hdr-btn" onclick="Modal.open('office')" title="Pixel Office HQ">🏢 OFFICE</button>
+    <button class="hdr-btn" onclick="openAgentHQ()" title="Agent HQ — Live Pixel Office">🏢 OFFICE</button>
     <button class="hdr-btn" onclick="Modal.open('company')" title="Company / Org View">📋 COMPANY</button>
     <button class="hdr-btn" onclick="Modal.open('botstatus')" title="MT5 Bot Status">🤖 BOT</button>
     <button class="hdr-btn" onclick="Modal.open('help')" data-i18n="btn.help">❓ HELP</button>
@@ -613,6 +613,26 @@
 <script src="js/sprite-slicer.js?v=61"></script>
 <script src="js/backtest.js?v=61"></script>
 <script src="js/app.js?v=61"></script>
+
+<!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
+<div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
+  <button onclick="closeAgentHQ()" title="ปิด (Esc)"
+    style="position:absolute;top:12px;right:16px;z-index:10000;background:#0d1322;border:1px solid #2de2e6;
+           color:#2de2e6;font-family:monospace;font-size:13px;padding:5px 12px;border-radius:7px;cursor:pointer">✕ ปิด</button>
+  <iframe id="agenthq-frame" title="Agent HQ" style="width:100%;height:100%;border:none;display:block"></iframe>
+</div>
+<script>
+  function openAgentHQ() {
+    const ov = document.getElementById('agenthq-overlay');
+    const fr = document.getElementById('agenthq-frame');
+    if (!fr.src) fr.src = 'agent-hq.html?v=61';   // load once; data syncs live from parent
+    ov.style.display = 'block';
+  }
+  function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('agenthq-overlay').style.display === 'block') closeAgentHQ();
+  });
+</script>
 
 </body>
 </html>

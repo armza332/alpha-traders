@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent HQ — Pixel Office</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#070a14; --panel:#0d1322; --panel2:#121a30; --line:#1e2746;
+    --txt:#dce4ff; --dim:#7d88b0; --cyan:#2de2e6; --purple:#a96bff;
+    --green:#3df58a; --amber:#ffc44d; --red:#ff4d6d; --pink:#ff5cce;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 70% -10%, #15224a 0%, transparent 55%),
+      radial-gradient(900px 600px at 0% 110%, #1a1340 0%, transparent 50%),
+      var(--bg);
+    color:var(--txt);
+    font-family:"JetBrains Mono", monospace;
+    overflow:hidden;
+    display:flex; flex-direction:column;
+    -webkit-font-smoothing:none;
+  }
+  .pixel { font-family:"Pixelify Sans", monospace; }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar {
+    display:flex; align-items:center; gap:18px;
+    padding:10px 18px;
+    background:linear-gradient(180deg, #0e1528, #0a0f1d);
+    border-bottom:1px solid var(--line);
+    box-shadow:0 2px 0 #00000060;
+    flex:0 0 auto; z-index:5;
+  }
+  .brand { display:flex; align-items:center; gap:11px; }
+  .brand .logo {
+    width:30px; height:30px; position:relative; flex:0 0 auto;
+    background:conic-gradient(from 0deg, var(--purple), var(--cyan), var(--purple));
+    clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);
+  }
+  .brand .logo::after {
+    content:""; position:absolute; inset:3px;
+    background:var(--panel);
+    clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);
+  }
+  .brand .logo::before {
+    content:""; position:absolute; inset:0; z-index:2;
+    background:
+      linear-gradient(var(--cyan),var(--cyan)) center/12px 3px no-repeat,
+      linear-gradient(var(--cyan),var(--cyan)) center/3px 12px no-repeat;
+  }
+  .brand h1 { font-family:"Pixelify Sans"; font-size:20px; font-weight:700; letter-spacing:1px;
+    color:#fff; text-shadow:0 0 10px #2de2e680; line-height:1; }
+  .brand .sub { font-size:9.5px; color:var(--dim); letter-spacing:2px; margin-top:2px; }
+
+  .legend { display:flex; gap:8px; margin-left:6px; }
+  .pill {
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel); border:1px solid var(--line); border-radius:3px;
+    padding:5px 9px; min-width:96px;
+  }
+  .pill .dot { width:8px; height:8px; border-radius:2px; flex:0 0 auto; }
+  .pill .lab { font-size:9px; color:var(--dim); letter-spacing:.5px; text-transform:uppercase; }
+  .pill .num { font-family:"Pixelify Sans"; font-size:18px; font-weight:700; line-height:1; margin-left:auto; }
+
+  .topright { margin-left:auto; display:flex; align-items:center; gap:16px; }
+  .live { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--green); letter-spacing:2px; }
+  .live .b { width:7px; height:7px; border-radius:50%; background:var(--green);
+    box-shadow:0 0 8px var(--green); animation:blink 1.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .clock { font-family:"Pixelify Sans"; font-size:20px; color:var(--cyan);
+    letter-spacing:2px; text-shadow:0 0 8px #2de2e660; }
+  .total { font-size:10px; color:var(--dim); }
+  .total b { font-family:"Pixelify Sans"; font-size:18px; color:var(--txt); }
+
+  /* ---------- BODY ---------- */
+  .body { flex:1; display:flex; min-height:0; }
+
+  .stage {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    overflow:hidden; padding:16px;
+    background:
+      radial-gradient(700px 400px at 50% 40%, #0e1730 0%, transparent 70%);
+  }
+  .wrap { position:relative; box-shadow:0 0 0 1px #2de2e633, 0 0 60px #2de2e618, 0 24px 60px #000a; }
+  #scene { display:block; width:100%; height:100%; image-rendering:pixelated; border-radius:2px; }
+
+  #labels { position:absolute; inset:0; pointer-events:none; }
+  .nametag {
+    position:absolute; transform:translate(-50%,-100%);
+    font-family:"Pixelify Sans"; font-size:11px; font-weight:600; line-height:1;
+    color:#eaf0ff; white-space:nowrap;
+    background:#0b1120ee; border:1px solid var(--line); border-radius:2px;
+    padding:2px 5px; text-shadow:0 1px 0 #000;
+  }
+  .nametag.sel { background:#16203add; box-shadow:0 0 8px currentColor; }
+
+  /* ---------- POPUP ---------- */
+  #popup {
+    position:absolute; display:none; width:236px; z-index:20;
+    --accent:#2de2e6;
+    background:linear-gradient(180deg,#101a30,#0b1120);
+    border:1px solid var(--accent);
+    box-shadow:0 0 0 1px #000, 0 0 22px -2px var(--accent), 0 18px 40px #000c;
+    border-radius:4px;
+    transform:translate(-50%,0);
+  }
+  .pp-head { display:flex; align-items:center; gap:9px; padding:11px 12px 9px;
+    border-bottom:1px solid var(--line); position:relative; }
+  .pp-ava { width:30px; height:30px; border-radius:3px; flex:0 0 auto;
+    box-shadow:inset 0 0 0 1px #ffffff30, 0 0 10px -2px var(--accent);
+    image-rendering:pixelated; }
+  .pp-name { font-family:"Pixelify Sans"; font-size:17px; font-weight:700; color:#fff; letter-spacing:.5px; }
+  .pp-role { font-size:9.5px; color:var(--dim); margin-top:1px; }
+  #popup-close { position:absolute; top:8px; right:9px; width:18px; height:18px;
+    background:none; border:1px solid var(--line); color:var(--dim); border-radius:3px;
+    cursor:pointer; font-family:"Pixelify Sans"; font-size:12px; line-height:1; }
+  #popup-close:hover { color:#fff; border-color:var(--accent); }
+  .pp-body { padding:11px 12px; display:flex; flex-direction:column; gap:9px; }
+  .pp-status { align-self:flex-start; font-family:"Pixelify Sans"; font-size:11px; font-weight:600;
+    letter-spacing:1px; border:1px solid; border-radius:3px; padding:3px 8px; }
+  .pp-field-l { font-size:8.5px; color:var(--dim); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:3px; }
+  .pp-task { font-size:11.5px; color:var(--txt); line-height:1.45; }
+  .pp-bar { height:7px; background:#0a1020; border:1px solid var(--line); border-radius:2px; overflow:hidden; }
+  .pp-bar-fill { height:100%; width:0%; transition:width .5s ease; box-shadow:0 0 8px currentColor; }
+  .pp-prog-row { display:flex; justify-content:space-between; align-items:center; }
+  .pp-prog-num { font-family:"Pixelify Sans"; font-size:12px; color:var(--accent); }
+  .pp-foot { display:flex; justify-content:space-between; padding:8px 12px;
+    border-top:1px solid var(--line); font-size:9.5px; color:var(--dim); }
+  .pp-id { color:var(--accent); letter-spacing:1px; }
+
+  /* ---------- ROSTER ---------- */
+  .roster-panel {
+    flex:0 0 248px; display:flex; flex-direction:column;
+    background:linear-gradient(180deg,#0c1222,#090d18);
+    border-left:1px solid var(--line);
+  }
+  .rhead { padding:12px 14px 10px; border-bottom:1px solid var(--line); }
+  .rhead .t { font-family:"Pixelify Sans"; font-size:14px; color:#fff; letter-spacing:1px; }
+  .rhead .d { font-size:9px; color:var(--dim); letter-spacing:1.5px; margin-top:3px; }
+  #roster { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:4px; }
+  .rrow { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px;
+    width:100%; text-align:left; cursor:pointer;
+    background:var(--panel); border:1px solid var(--line); border-radius:3px;
+    padding:8px 9px; color:var(--txt); font-family:inherit; }
+  .rrow:hover { border-color:#2de2e655; background:var(--panel2); }
+  .rrow.sel { border-color:var(--cyan); box-shadow:inset 0 0 0 1px #2de2e640, 0 0 14px -4px var(--cyan); }
+  .rdot { width:8px; height:8px; border-radius:50%; }
+  .rname { font-family:"Pixelify Sans"; font-size:13px; font-weight:600; letter-spacing:.5px; }
+  .rrole { grid-column:2; grid-row:2; font-size:8.5px; opacity:.85; letter-spacing:.5px; }
+  .rrow { grid-template-rows:auto auto; }
+  .rdot { grid-row:1 / span 2; }
+  .rst { grid-row:1; font-family:"Pixelify Sans"; font-size:10px; letter-spacing:.5px; }
+  #roster::-webkit-scrollbar { width:8px; }
+  #roster::-webkit-scrollbar-thumb { background:#1e2746; border-radius:4px; }
+
+  .rfoot { padding:9px 14px; border-top:1px solid var(--line); font-size:9px; color:var(--dim); line-height:1.5; }
+  .rfoot b { color:var(--cyan); }
+
+  @media (max-width:760px){
+    .legend{ display:none; }
+    .roster-panel{ flex-basis:170px; }
+  }
+</style>
+</head>
+<body>
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>AGENT&nbsp;HQ</h1>
+        <div class="sub">PIXEL OPS · LIVE MONITOR</div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="pill"><span class="dot" style="background:#2de2e6"></span><span class="lab">ทำงาน</span><span class="num" id="c-working" style="color:#2de2e6">0</span></div>
+      <div class="pill"><span class="dot" style="background:#3df58a"></span><span class="lab">ว่าง</span><span class="num" id="c-idle" style="color:#3df58a">0</span></div>
+      <div class="pill"><span class="dot" style="background:#ffc44d"></span><span class="lab">รอคิว</span><span class="num" id="c-waiting" style="color:#ffc44d">0</span></div>
+      <div class="pill"><span class="dot" style="background:#ff4d6d"></span><span class="lab">error</span><span class="num" id="c-error" style="color:#ff4d6d">0</span></div>
+    </div>
+    <div class="topright">
+      <div class="total">AGENTS&nbsp; <b id="c-total">0</b></div>
+      <div class="live"><span class="b"></span>LIVE</div>
+      <div class="clock" id="clock">00:00:00</div>
+    </div>
+  </header>
+
+  <!-- BODY -->
+  <div class="body">
+    <div class="stage">
+      <div class="wrap" id="wrap">
+        <canvas id="scene"></canvas>
+        <div id="labels"></div>
+        <!-- POPUP -->
+        <div id="popup">
+          <div class="pp-head">
+            <div class="pp-ava"></div>
+            <div>
+              <div class="pp-name">—</div>
+              <div class="pp-role">—</div>
+            </div>
+            <button id="popup-close">×</button>
+          </div>
+          <div class="pp-body">
+            <div class="pp-status">—</div>
+            <div>
+              <div class="pp-field-l">งานปัจจุบัน</div>
+              <div class="pp-task">—</div>
+            </div>
+            <div>
+              <div class="pp-prog-row">
+                <span class="pp-field-l" style="margin:0">ความคืบหน้า</span>
+                <span class="pp-prog-num">0%</span>
+              </div>
+              <div class="pp-bar" style="margin-top:5px"><div class="pp-bar-fill"></div></div>
+            </div>
+          </div>
+          <div class="pp-foot">
+            <span class="pp-id">#—</span>
+            <span class="pp-today">0 งานวันนี้</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROSTER -->
+    <aside class="roster-panel">
+      <div class="rhead">
+        <div class="t">ROSTER</div>
+        <div class="d">คลิกเพื่อโฟกัส agent</div>
+      </div>
+      <div id="roster"></div>
+      <div class="rfoot">คลิกตัวละครในฉาก หรือชื่อในลิสต์<br>เพื่อดู <b>task · สถานะ · progress</b></div>
+    </aside>
+  </div>
+
+  <script src="agent-data.js"></script>
+  <script src="sprites.js"></script>
+  <script src="room.js"></script>
+  <script src="engine.js"></script>
+  <script>
+    // fit the fixed-aspect scene wrapper into the stage
+    (function () {
+      const stage = document.querySelector(".stage");
+      const wrap = document.getElementById("wrap");
+      const AW = 640, AH = 384;
+      function fit() {
+        const cs = getComputedStyle(stage);
+        const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        const padV = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        const aw = stage.clientWidth - pad, ah = stage.clientHeight - padV;
+        let w = aw, h = w * AH / AW;
+        if (h > ah) { h = ah; w = h * AW / AH; }
+        wrap.style.width = Math.round(w) + "px";
+        wrap.style.height = Math.round(h) + "px";
+      }
+      window.addEventListener("resize", fit);
+      fit(); setTimeout(fit, 60);
+    })();
+  </script>
+
+  <!-- Tweaks panel (React mounts only the panel; writes into live window.CFG) -->
+  <div id="tweaks-root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "charSpeed": 1,
+      "showNames": true,
+      "liveSim": true,
+      "dust": true,
+      "accent": "#2de2e6"
+    }/*EDITMODE-END*/;
+
+    function TweakApp() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      React.useEffect(() => {
+        if (!window.CFG) return;
+        window.CFG.speed = t.charSpeed;
+        window.CFG.showLabels = t.showNames;
+        window.CFG.simulate = t.liveSim;
+        window.CFG.fxDust = t.dust;
+        document.documentElement.style.setProperty("--cyan", t.accent);
+      }, [t.charSpeed, t.showNames, t.liveSim, t.dust, t.accent]);
+
+      return (
+        <TweaksPanel title="Tweaks">
+          <TweakSection label="ฉาก · Scene" />
+          <TweakSlider label="ความเร็วตัวละคร" value={t.charSpeed} min={0.3} max={2.5} step={0.1} unit="×"
+                       onChange={(v) => setTweak('charSpeed', v)} />
+          <TweakToggle label="แสดงชื่อ agent" value={t.showNames}
+                       onChange={(v) => setTweak('showNames', v)} />
+          <TweakToggle label="จำลองกิจกรรมสด" value={t.liveSim}
+                       onChange={(v) => setTweak('liveSim', v)} />
+          <TweakToggle label="ฝุ่นลอยในอากาศ" value={t.dust}
+                       onChange={(v) => setTweak('dust', v)} />
+          <TweakSection label="ธีม · Theme" />
+          <TweakColor label="สีไฟนีออน (HUD)" value={t.accent}
+                      options={['#2de2e6', '#a96bff', '#3df58a', '#ff5cce']}
+                      onChange={(v) => setTweak('accent', v)} />
+        </TweaksPanel>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<TweakApp />);
+  </script>
+</body>
+</html>
