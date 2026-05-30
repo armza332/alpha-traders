@@ -1385,7 +1385,9 @@ class GoldTeam {
   }
 
   _on(key, def = true) {
-    return typeof Settings !== 'undefined' ? Settings.get(key, def) : def;
+    // Employee/combo era: always compute every analyst so any combo has its
+    // agents (the old per-analyst toggles silently broke employee combos).
+    return def;
   }
 
   /** Apply adaptive weight from AgentScores to an agent's report (regime-aware) */
@@ -1505,7 +1507,9 @@ class CurrencyTeam {
   }
 
   _on(key, def = true) {
-    return typeof Settings !== 'undefined' ? Settings.get(key, def) : def;
+    // Employee/combo era: always compute every analyst so any combo has its
+    // agents (the old per-analyst toggles silently broke employee combos).
+    return def;
   }
 
   _applyWeight(report, agentName, regime, symbol) {

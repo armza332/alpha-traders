@@ -3351,7 +3351,6 @@ const Company = {
 
     return `<div style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--gold);font-weight:bold;margin-bottom:4px">👔 EMPLOYEE BOARD — ${this.EMPLOYEES.length} พนักงาน (1 คอมโบ/คน · แข่งกันออกซิก)
-        <button onclick="Company.enableComboAnalysts()" class="btn btn-primary" style="font-size:7px;padding:2px 8px;margin-left:8px;border-color:var(--green);color:var(--green)">✅ เปิด Analysts ที่ทีมใช้</button>
         <button onclick="Company.addCombo()" class="btn btn-secondary" style="font-size:7px;padding:2px 8px;margin-left:4px">+ จ้างพนักงาน/คอมโบใหม่</button>
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>

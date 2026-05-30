@@ -238,7 +238,7 @@ const UI = {
           </span>
         </div>`;
         }).join('')}
-      <div class="news-summary">${r.nearEvent} | ${r.bias} | Risk: ${r.risk?.split(' — ')[0] ?? ''}</div>
+      <div class="news-summary">${r.nearEvent || '✓ ไม่มีข่าวใกล้'} | ${r.bias || '● Neutral'} | Risk: ${(r.risk || 'LOW').split(' — ')[0]}</div>
       <div style="font-size:5px;color:var(--gray);padding:2px 4px;text-align:right;font-style:italic">
         📅 Typical schedule (not live) — for real events check
         <a href="https://www.forexfactory.com/calendar" target="_blank" style="color:var(--teal)">ForexFactory</a>
