@@ -215,6 +215,7 @@ const Settings = {
     enableXAU:      true,
     enableAUD:      true,
     enableEUR:      true,
+    enableBTC:      true,     // ₿ crypto desk (24/7)
     adxGate:        20,       // skip signal if ADX below this (0 = off)
     // Analyst toggles
     enableSMC:       true,
@@ -3129,6 +3130,7 @@ const Company = {
     const out = { emp, combo, sym, live, rec, wr, signal: live.signal, conf: live.conf, grade: '-', approved: false, blockedBy: null };
     if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
     if (!this._marketOpen(sym)) { out.blockedBy = '🌙 ตลาดปิด (เสาร์-อาทิตย์)'; return out; }
+    if (sym === 'BTCUSD' && typeof Settings !== 'undefined' && !Settings.get('enableBTC', true)) { out.blockedBy = 'ปิดพอร์ต BTC'; return out; }
     const bypassKB = (typeof Settings !== 'undefined') && Settings.get('tradeWithoutKB', false);
     const fullAgree = live.n > 0 && (live.buy === live.n || live.sell === live.n);
     let grade = 'C';

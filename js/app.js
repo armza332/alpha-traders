@@ -75,6 +75,7 @@ const TradingWarRoom = {
       XAUUSD: this.market.prices.XAUUSD,
       AUDUSD: this.market.prices.AUDUSD,
       EURUSD: this.market.prices.EURUSD,
+      BTCUSD: this.market.prices.BTCUSD,
     };
 
     UI.updateTicker(prices);

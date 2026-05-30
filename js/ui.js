@@ -711,16 +711,17 @@ const UI = {
     if (!bar) return;
 
     const pairs = [
-      { sym: 'XAU/USD', key: 'XAUUSD', digits: 3 },
-      { sym: 'AUD/USD', key: 'AUDUSD', digits: 5 },
-      { sym: 'EUR/USD', key: 'EURUSD', digits: 5 },
-      { sym: 'USD Index', key: null, digits: 3, fixed: '104.23' },
+      { sym: 'XAU/USD', key: 'XAUUSD', digits: 3, scale: 3 },
+      { sym: 'AUD/USD', key: 'AUDUSD', digits: 5, scale: 0.0005 },
+      { sym: 'EUR/USD', key: 'EURUSD', digits: 5, scale: 0.0005 },
+      { sym: 'BTC/USD', key: 'BTCUSD', digits: 2, scale: 60 },
+      { sym: 'USD Index', key: null, digits: 3, fixed: '104.23', scale: 0.05 },
     ];
 
     bar.innerHTML = pairs.map(p => {
       const val = p.key ? prices[p.key] : parseFloat(p.fixed);
       if (!val) return '';
-      const change  = (Math.random() - 0.49) * (p.key === 'XAUUSD' ? 3 : 0.0005);
+      const change  = (Math.random() - 0.49) * (p.scale || 0.0005);
       const isUp    = change >= 0;
       const changePct = (change / val * 100).toFixed(3);
       return `<div class="ticker-item">

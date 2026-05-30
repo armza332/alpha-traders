@@ -9,6 +9,7 @@ const TWRPortfolio = {
     { sym: 'XAUUSD', key: 'enableXAU', emoji: '🥇', name: 'GOLD',   desc: 'XAU/USD', dp: 2 },
     { sym: 'AUDUSD', key: 'enableAUD', emoji: '🇦🇺', name: 'AUSSIE', desc: 'AUD/USD', dp: 4 },
     { sym: 'EURUSD', key: 'enableEUR', emoji: '🇪🇺', name: 'EURO',   desc: 'EUR/USD', dp: 4 },
+    { sym: 'BTCUSD', key: 'enableBTC', emoji: '₿',  name: 'BITCOIN',desc: 'BTC/USD · 24/7', dp: 1 },
   ],
 
   render() {
@@ -32,7 +33,7 @@ const TWRPortfolio = {
       </div>`;
     }).join('') +
     `<div style="flex:0 0 100%;font-size:6px;color:var(--gray);text-align:right;margin-top:2px">
-        กำลังปั้น ${onCount}/3 พอร์ต · ${onCount === 0 ? '⚠️ ปิดหมด = ไม่เทรดเลย' : 'คลิกการ์ดเพื่อสลับ'}</div>`;
+        กำลังปั้น ${onCount}/${this.PAIRS.length} พอร์ต · ${onCount === 0 ? '⚠️ ปิดหมด = ไม่เทรดเลย' : 'คลิกการ์ดเพื่อสลับ'}</div>`;
   },
 
   toggle(key) {
