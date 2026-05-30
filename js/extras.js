@@ -2851,7 +2851,7 @@ const Company = {
     // ── FirmSniper: prop-firm challenge specialist — hard-filter 5-layer confluence (single mega-agent) ──
     firm_sniper:  { name:'Firm Sniper', icon:'🎯', agents:['sniper'], desc:'พนักงานสอบกองทุน: hard filter 5 ชั้นพร้อมกัน — (1)ไม่มีข่าวแรง (2)Liquidity Sweep (3)โซน Discount/Premium (4)Order Block+FVG (5)Macro DXY ไม่สวน → ยิงเฉพาะ confluence เต็ม conf 95 ออกน้อยมาก winrate สูง drawdown ต่ำ เหมาะผ่าน challenge (ดีสุดในโหมด WEB/BOTH เพราะใช้ DXY+ข่าว)' },
     // ── BTC crypto desk — trades 24/7 incl. weekends; trend + momentum + breakout ──
-    btc_trend:    { name:'Crypto Momentum', icon:'₿', agents:['utbot','breakout','mtf'], desc:'BTC 24/7: UT-Bot คุมเทรนด์ + Breakout เบรกกรอบ + MTF ยืนยันหลาย TF — เหมาะคริปโตที่วิ่งแรง/เทรนด์ชัด ออกซิกได้เสาร์-อาทิตย์ (ตลาดคริปโตไม่ปิด)' },
+    btc_trend:    { name:'Crypto Momentum', icon:'₿', agents:['utbot','macd','breakout'], desc:'BTC 24/7: UT-Bot คุมเทรนด์ + MACD โมเมนตัม + Breakout เบรกกรอบ — 3 ตัวโหวตจริง (ไม่พึ่ง MTF ที่ต้องต่อ feed) เหมาะคริปโตวิ่งแรง ออกซิกได้เสาร์-อาทิตย์' },
   },
   // Pick the COMBO whose members are collectively best on this pair (KB avg
   // member edge). Defaults to a theory-sound combo if KB has no clear winner.

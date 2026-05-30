@@ -365,7 +365,7 @@ const TradingWarRoom = {
     if (!onApps && !key) return;
 
     const TFs = ['1h', '4h', '1day'];
-    for (const sym of ['XAUUSD', 'AUDUSD', 'EURUSD']) {
+    for (const sym of ['XAUUSD', 'AUDUSD', 'EURUSD', 'BTCUSD']) {
       for (const tf of TFs) {
         try {
           const h = await this.market.fetchHistory(sym, tf, 60, key);

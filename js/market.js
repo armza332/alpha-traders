@@ -469,7 +469,7 @@ class MarketEngine {
   }
 
   /** Multi-timeframe cache — populated by app.js, read by MTFAgent */
-  _mtfData = { XAUUSD: {}, AUDUSD: {}, EURUSD: {} };
+  _mtfData = { XAUUSD: {}, AUDUSD: {}, EURUSD: {}, BTCUSD: {} };
 
   applyMTF(symbol, tf, candles) {
     if (!candles || candles.length < 20) return;
