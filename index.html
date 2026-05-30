@@ -20,11 +20,11 @@
     #main { display:block !important; }
     .hub-grid {
       display:grid; gap:10px; align-items:start;
-      grid-template-columns:440px minmax(0,1fr) 340px;
+      grid-template-columns:370px minmax(0,1fr) 300px;
       transition:grid-template-columns .2s ease;
     }
-    .hub-grid.no-left  { grid-template-columns:0 minmax(0,1fr) 340px; }
-    .hub-grid.no-right { grid-template-columns:440px minmax(0,1fr) 0; }
+    .hub-grid.no-left  { grid-template-columns:0 minmax(0,1fr) 300px; }
+    .hub-grid.no-right { grid-template-columns:370px minmax(0,1fr) 0; }
     .hub-grid.no-left.no-right { grid-template-columns:0 minmax(0,1fr) 0; }
     .hub-col { max-height:calc(100vh - 215px); overflow-y:auto; overflow-x:hidden; min-width:0; }
     .hub-col.collapsed { display:none; }
@@ -32,7 +32,7 @@
     .hub-center { position:sticky; top:8px; min-width:0; }
     .hub-office-head { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border);
       border-bottom:none; border-radius:8px 8px 0 0; background:linear-gradient(90deg,rgba(45,226,230,.12),transparent); }
-    #hub-office-frame { width:100%; height:calc(100vh - 250px); min-height:480px; border:1px solid var(--border);
+    #hub-office-frame { width:100%; height:calc(100vh - 200px); min-height:580px; border:1px solid var(--border);
       border-radius:0 0 8px 8px; background:#070a14; display:block; }
     .hub-tab { position:absolute; top:50%; transform:translateY(-50%); z-index:30; width:18px; height:54px;
       background:#141b30; border:1px solid var(--border); color:var(--cyan,#2de2e6); cursor:pointer;
@@ -167,7 +167,7 @@
         <span style="font-size:6px;color:var(--gray)">พนักงานเดินทำงานตามสัญญาณจริง</span>
         <button onclick="openAgentHQ()" title="เปิดเต็มจอ" style="margin-left:auto;background:#141b30;border:1px solid var(--border);color:var(--cyan,#2de2e6);font-size:9px;padding:2px 8px;border-radius:5px;cursor:pointer">⛶ เต็มจอ</button>
       </div>
-      <iframe id="hub-office-frame" title="Alpha Traders HQ" src="agent-hq.html?v=65" loading="lazy"></iframe>
+      <iframe id="hub-office-frame" title="Alpha Traders HQ" src="agent-hq.html?embed=1&v=66" loading="lazy"></iframe>
     </section>
 
     <!-- RIGHT: market data + team analysis + comms -->
@@ -616,17 +616,17 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=65"></script>
-<script src="js/market.js?v=65"></script>
-<script src="js/agents.js?v=65"></script>
-<script src="js/ui.js?v=65"></script>
-<script src="js/extras.js?v=65"></script>
-<script src="js/ai-bridge.js?v=65"></script>
-<script src="js/gemini.js?v=65"></script>
-<script src="js/portfolio.js?v=65"></script>
-<script src="js/sprite-slicer.js?v=65"></script>
-<script src="js/backtest.js?v=65"></script>
-<script src="js/app.js?v=65"></script>
+<script src="js/i18n.js?v=66"></script>
+<script src="js/market.js?v=66"></script>
+<script src="js/agents.js?v=66"></script>
+<script src="js/ui.js?v=66"></script>
+<script src="js/extras.js?v=66"></script>
+<script src="js/ai-bridge.js?v=66"></script>
+<script src="js/gemini.js?v=66"></script>
+<script src="js/portfolio.js?v=66"></script>
+<script src="js/sprite-slicer.js?v=66"></script>
+<script src="js/backtest.js?v=66"></script>
+<script src="js/app.js?v=66"></script>
 
 <!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
 <div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
@@ -639,7 +639,7 @@
   function openAgentHQ() {
     const ov = document.getElementById('agenthq-overlay');
     const fr = document.getElementById('agenthq-frame');
-    if (!fr.src) fr.src = 'agent-hq.html?v=65';   // load once; data syncs live from parent
+    if (!fr.src) fr.src = 'agent-hq.html?v=66';   // load once; data syncs live from parent
     ov.style.display = 'block';
   }
   function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }

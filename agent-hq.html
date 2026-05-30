@@ -166,6 +166,12 @@
     .legend{ display:none; }
     .roster-panel{ flex-basis:170px; }
   }
+
+  /* EMBED MODE (?embed=1) — scene fills the iframe; hide chrome (we have our own outside) */
+  body.embed .topbar { display:none; }
+  body.embed .roster-panel { display:none; }
+  body.embed .body { height:100vh; }
+  body.embed .stage { padding:6px; }
 </style>
 </head>
 <body>
@@ -240,11 +246,13 @@
     </aside>
   </div>
 
-  <script src="js/agenthq-data.js?v=61"></script>
-  <script src="js/agenthq-sprites.js?v=61"></script>
-  <script src="js/agenthq-room.js?v=61"></script>
-  <script src="js/agenthq-engine.js?v=61"></script>
+  <script src="js/agenthq-data.js?v=66"></script>
+  <script src="js/agenthq-sprites.js?v=66"></script>
+  <script src="js/agenthq-room.js?v=66"></script>
+  <script src="js/agenthq-engine.js?v=66"></script>
   <script>
+    // embed mode — hide topbar/roster so the scene fills the iframe
+    if (new URLSearchParams(location.search).get('embed') === '1') document.body.classList.add('embed');
     // fit the fixed-aspect scene wrapper into the stage
     (function () {
       const stage = document.querySelector(".stage");
