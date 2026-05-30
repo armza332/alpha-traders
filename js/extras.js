@@ -2383,6 +2383,7 @@ const Company = {
     } else {
       this.refreshData();
     }
+    this.mountFloor();      // build the walking floor once + keep loops alive
     this._renderChat();
   },
 
@@ -3767,7 +3768,10 @@ const Company = {
 
       <!-- 2-column: left = office (refreshable), right = secretary chat (persistent) -->
       <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px">
-        <div id="company-office">${this.renderOffice()}</div>
+        <div>
+          <div id="twr-floor"></div>
+          <div id="company-office">${this.renderOffice()}</div>
+        </div>
 
         <!-- RIGHT: Secretary chat — NEVER re-rendered (input stays) -->
         <div style="display:flex;flex-direction:column;border:2px solid var(--teal);border-radius:6px;background:rgba(0,255,255,0.03);height:540px">
@@ -3806,33 +3810,74 @@ const Company = {
     emp_rv: { x:69, y:40 }, emp_wv: { x:82, y:50 }, emp_bo: { x:90, y:63 },
     emp_cl: { x:47, y:88 }, emp_fs: { x:28, y:90 }, emp_bg: { x:24, y:46 }, emp_bt: { x:62, y:88 },
   },
-  renderPixelRoom() {
+  // Static floor scene — figs built ONCE (stable ids); a separate loop walks
+  // them + updates their signal bubble so positions persist across re-renders.
+  floorSceneHTML() {
+    const figs = this.EMPLOYEES.map(e => {
+      const pos = this.ROOM_POS[e.id] || { x:50, y:50 };
+      return `<div id="twrfig-${e.id}" class="twr-fig" data-x="${pos.x}" data-y="${pos.y}"
+          style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-100%);z-index:${Math.round(pos.y)+5};width:84px;text-align:center;pointer-events:none;transition:left 2.6s linear, top 2.6s linear">
+        <div class="twr-bubble-slot" style="min-height:11px"></div>
+        <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:62px;image-rendering:pixelated;display:block;margin:1px auto 0;filter:drop-shadow(0 3px 4px rgba(0,0,0,.7));transition:transform .25s">
+        <div style="font-size:7px;font-weight:bold;color:${e.face.accColor};text-shadow:0 1px 2px #000">${e.name}</div>
+      </div>`;
+    }).join('');
+    return `<div id="twr-floor-scene" style="position:relative;width:100%;max-width:940px;margin:0 auto 12px;border-radius:8px;overflow:hidden;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,.55)">
+      <img src="assets/room-bg.png?v=55" style="width:100%;display:block;image-rendering:pixelated">
+      <div style="position:absolute;left:12px;top:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Live Floor</div>
+      ${figs}
+    </div>`;
+  },
+  // Mount the floor once into #twr-floor, then keep walk + status loops alive.
+  mountFloor() {
+    const host = document.getElementById('twr-floor');
+    if (!host) return;
+    if (!document.getElementById('twr-floor-scene')) {
+      host.innerHTML = this.floorSceneHTML();
+      if (typeof SpriteSlicer !== 'undefined') SpriteSlicer.fillAvatars();
+    }
+    this._floorStatusTick();
+    if (!this._roamTimer)     this._roamTimer     = setInterval(() => this._roamTick(), 2800);
+    if (!this._floorStatTimer) this._floorStatTimer = setInterval(() => this._floorStatusTick(), 2500);
+  },
+  // Random wander across the wooden floor (each tick ~half the team moves).
+  _roamTick() {
+    if (!document.getElementById('twr-floor-scene')) return;
+    this.EMPLOYEES.forEach(e => {
+      if (Math.random() > 0.5) return;
+      const fig = document.getElementById('twrfig-' + e.id); if (!fig) return;
+      const nx = 14 + Math.random() * 74;   // 14–88%  (floor width)
+      const ny = 58 + Math.random() * 32;   // 58–90%  (wooden floor only)
+      const cx = parseFloat(fig.dataset.x) || 50;
+      const img = fig.querySelector('.twr-ava');
+      if (img) img.style.transform = (nx < cx) ? 'scaleX(-1)' : 'scaleX(1)';
+      fig.dataset.x = nx.toFixed(1); fig.dataset.y = ny.toFixed(1);
+      fig.style.left = nx + '%'; fig.style.top = ny + '%';
+      fig.style.zIndex = Math.round(ny) + 5;
+    });
+  },
+  // Update each fig's signal bubble in place (no element recreation = no flicker).
+  _floorStatusTick() {
+    if (!document.getElementById('twr-floor-scene')) return;
     const gold = TradingWarRoom?.lastGold, fx = TradingWarRoom?.lastFX;
     const bot  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
     const teamFor = (s) => s === 'XAUUSD' ? gold : s === 'AUDUSD' ? (fx && fx.aud) : s === 'EURUSD' ? (fx && fx.eur) : (typeof TradingWarRoom !== 'undefined' ? TradingWarRoom.lastBTC : null);
-    const figs = this.EMPLOYEES.map(e => {
-      const pos = this.ROOM_POS[e.id] || { x:50, y:50 };
+    this.EMPLOYEES.forEach(e => {
+      const fig = document.getElementById('twrfig-' + e.id); if (!fig) return;
+      const slot = fig.querySelector('.twr-bubble-slot'); if (!slot) return;
       let sig = 'wait', conf = 0;
       try {
         if (e.sym) { const d = this._empDecision(e, e.sym, teamFor(e.sym), bot); sig = d.signal; conf = d.conf || 0; }
         else this._SYMS.forEach(s => { const d = this._empDecision(e, s, teamFor(s), bot); if ((d.conf||0) > conf) { conf = d.conf||0; sig = d.signal; } });
       } catch (_) {}
-      const dirActive = (sig === 'buy' || sig === 'sell');
-      const isCombo = conf >= 90 && dirActive;
+      const active = (sig === 'buy' || sig === 'sell');
+      const isCombo = conf >= 90 && active;
       const bg = isCombo ? (sig === 'buy' ? '#00ffae' : '#ff4d6d') : `hsl(${Math.min(120, conf*1.2)} 85% 55%)`;
       const dir = sig === 'buy' ? 'BUY' : sig === 'sell' ? 'SELL' : '···';
-      const z = Math.round(pos.y) + 5;
-      return `<div style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-100%);z-index:${z};width:84px;text-align:center;pointer-events:none">
-        ${dirActive ? `<div style="display:inline-block;font-size:7px;font-weight:bold;padding:1px 5px;border-radius:6px 6px 6px 0;color:#04140d;background:${bg};white-space:nowrap;${isCombo?'box-shadow:0 0 10px '+bg+',0 0 18px '+bg+';animation:twrPulse 0.9s ease-in-out infinite':''}">${isCombo?'⚡':''}${dir} ${conf}%</div>` : ''}
-        <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:62px;image-rendering:pixelated;display:block;margin:1px auto 0;filter:drop-shadow(0 3px 4px rgba(0,0,0,.7))">
-        <div style="font-size:7px;font-weight:bold;color:${e.face.accColor};text-shadow:0 1px 2px #000">${e.name}</div>
-      </div>`;
-    }).join('');
-    return `<div style="position:relative;width:100%;max-width:940px;margin:0 auto 12px;border-radius:8px;overflow:hidden;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,.55)">
-      <img src="assets/room-bg.png?v=55" style="width:100%;display:block;image-rendering:pixelated">
-      <div style="position:absolute;left:12px;top:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Live Floor</div>
-      ${figs}
-    </div>`;
+      slot.innerHTML = active
+        ? `<div style="display:inline-block;font-size:7px;font-weight:bold;padding:1px 5px;border-radius:6px 6px 6px 0;color:#04140d;background:${bg};white-space:nowrap;${isCombo?'box-shadow:0 0 10px '+bg+';animation:twrPulse 0.9s ease-in-out infinite':''}">${isCombo?'⚡':''}${dir} ${conf}%</div>`
+        : '';
+    });
   },
 
   renderOffice() {
@@ -3840,7 +3885,6 @@ const Company = {
     const fx   = TradingWarRoom?.lastFX;
     const autoPilot = Settings.get('autoPilot', false);
     return `
-      ${this.renderPixelRoom()}
       ${autoPilot ? `<div style="padding:8px 12px;background:rgba(0,255,65,0.1);border:1px solid var(--green);margin-bottom:10px;font-size:9px;color:var(--green)">
         🤖 <b>AUTO PILOT ON</b> — ทีมตัดสินใจเอง 100% · Grade A+ → EA ทันที
       </div>` : ''}
