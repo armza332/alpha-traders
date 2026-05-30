@@ -15,6 +15,30 @@
     /* Pixel art logo grid */
     .star-pixel { display:inline-block; width:6px; height:6px; background:var(--gold); margin:0 1px; }
     .logo-row { display:flex; align-items:center; gap:2px; }
+
+    /* ── HUB LAYOUT (office-center · employees left · data right) ── */
+    #main { display:block !important; }
+    .hub-grid {
+      display:grid; gap:10px; align-items:start;
+      grid-template-columns:440px minmax(0,1fr) 340px;
+      transition:grid-template-columns .2s ease;
+    }
+    .hub-grid.no-left  { grid-template-columns:0 minmax(0,1fr) 340px; }
+    .hub-grid.no-right { grid-template-columns:440px minmax(0,1fr) 0; }
+    .hub-grid.no-left.no-right { grid-template-columns:0 minmax(0,1fr) 0; }
+    .hub-col { max-height:calc(100vh - 215px); overflow-y:auto; overflow-x:hidden; min-width:0; }
+    .hub-col.collapsed { display:none; }
+    .hub-col::-webkit-scrollbar { width:7px; } .hub-col::-webkit-scrollbar-thumb { background:#26324d; border-radius:4px; }
+    .hub-center { position:sticky; top:8px; min-width:0; }
+    .hub-office-head { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border);
+      border-bottom:none; border-radius:8px 8px 0 0; background:linear-gradient(90deg,rgba(45,226,230,.12),transparent); }
+    #hub-office-frame { width:100%; height:calc(100vh - 250px); min-height:480px; border:1px solid var(--border);
+      border-radius:0 0 8px 8px; background:#070a14; display:block; }
+    .hub-tab { position:absolute; top:50%; transform:translateY(-50%); z-index:30; width:18px; height:54px;
+      background:#141b30; border:1px solid var(--border); color:var(--cyan,#2de2e6); cursor:pointer;
+      font-size:11px; display:flex; align-items:center; justify-content:center; border-radius:5px; }
+    #hub-tab-left  { left:0; } #hub-tab-right { right:0; }
+    @media (max-width:1100px){ .hub-grid,.hub-grid.no-left,.hub-grid.no-right{ grid-template-columns:1fr; } .hub-center{position:static} #hub-office-frame{height:420px} .hub-col{max-height:none} }
   </style>
 </head>
 <body>
@@ -114,65 +138,66 @@
     <div id="portfolio-cards" style="display:flex;gap:8px;padding:10px;flex-wrap:wrap"></div>
   </div>
 
-  <!-- ═══════ TRADER ROSTER (Phase 21: 2 traders/pair, distinct skills) ═══════ -->
-  <div class="team-panel" id="roster-panel" style="grid-column:1/-1">
-    <div class="team-header" style="background:linear-gradient(90deg,rgba(255,215,0,0.12),transparent)">
-      <div>
-        <div class="team-name">👔 TRADING FLOOR (คอมโบใครคอมโบมัน · แข่งกันออกซิก)</div>
-        <div style="font-size:6px;color:var(--gray);margin-top:2px">พนักงานแต่ละคนถือ 1 คอมโบ → แข่งกันต่อรอบ → คนเก่งสุดได้คุมคู่นั้น → EA · มี Audit วัดผลรายคน 🎯</div>
-      </div>
-    </div>
-    <div id="trader-roster-body" style="padding:10px">
-      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
-        <div class="pixel-loader"></div> Loading traders...
-      </div>
-    </div>
-  </div>
+  <!-- ═══════ HUB: employees (left) · office (center) · data (right) ═══════ -->
+  <div class="hub-grid" id="hub-grid" style="position:relative">
+    <button class="hub-tab" id="hub-tab-left"  title="พับ/กางแผงพนักงาน" onclick="toggleHub('left')">◀</button>
+    <button class="hub-tab" id="hub-tab-right" title="พับ/กางแผงข้อมูล"  onclick="toggleHub('right')">▶</button>
 
-  <!-- ═══════ GOLD TEAM ═══════ -->
-  <div class="team-panel" id="gold-panel">
-    <div class="team-header gold-hdr">
-      <div>
-        <div class="team-name">🥇 GOLD TEAM</div>
-        <div style="font-size:6px;color:var(--gray);margin-top:2px">XAU/USD — Precious Metals Desk</div>
+    <!-- LEFT: Employee Board / Trading Floor -->
+    <aside class="hub-col" id="hub-left">
+      <div class="team-panel" id="roster-panel">
+        <div class="team-header" style="background:linear-gradient(90deg,rgba(255,215,0,0.12),transparent)">
+          <div>
+            <div class="team-name">👔 TRADING FLOOR</div>
+            <div style="font-size:6px;color:var(--gray);margin-top:2px">1 คอมโบ/คน · แข่งกันออกซิก · Audit รายคน 🎯</div>
+          </div>
+        </div>
+        <div id="trader-roster-body" style="padding:10px">
+          <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
+            <div class="pixel-loader"></div> Loading traders...
+          </div>
+        </div>
       </div>
-      <div style="font-size:7px;color:var(--gray)">
-        <span style="color:var(--green)">●</span> SMC
-        <span style="color:var(--blue)">●</span> EW
-        <span style="color:var(--yellow)">●</span> FIB
-        <span style="color:var(--orange)">●</span> RSI
-        <span style="color:var(--purple)">●</span> NEWS
-      </div>
-    </div>
-    <div id="gold-team-body">
-      <!-- Rendered by UI.renderGoldTeam() -->
-      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
-        <div class="pixel-loader"></div> Initializing Gold Team...
-      </div>
-    </div>
-  </div>
+    </aside>
 
-  <!-- ═══════ CURRENCY TEAM ═══════ -->
-  <div class="team-panel" id="currency-panel">
-    <div class="team-header fx-hdr">
-      <div>
-        <div class="team-name fx">💱 CURRENCY TEAM</div>
-        <div style="font-size:6px;color:var(--gray);margin-top:2px">AUD/USD + EUR/USD — FX Desk</div>
+    <!-- CENTER: live pixel office (Agent HQ) -->
+    <section class="hub-center" id="hub-center">
+      <div class="hub-office-head">
+        <span style="font-size:10px;color:var(--cyan,#2de2e6);font-weight:bold">🏢 ALPHA TRADERS HQ — Live Floor</span>
+        <span style="font-size:6px;color:var(--gray)">พนักงานเดินทำงานตามสัญญาณจริง</span>
+        <button onclick="openAgentHQ()" title="เปิดเต็มจอ" style="margin-left:auto;background:#141b30;border:1px solid var(--border);color:var(--cyan,#2de2e6);font-size:9px;padding:2px 8px;border-radius:5px;cursor:pointer">⛶ เต็มจอ</button>
       </div>
-      <div style="font-size:7px;color:var(--gray)">
-        <span style="color:var(--green)">●</span> SMC
-        <span style="color:var(--blue)">●</span> EW
-        <span style="color:var(--yellow)">●</span> FIB
-        <span style="color:var(--orange)">●</span> RSI
-        <span style="color:var(--purple)">●</span> NEWS
+      <iframe id="hub-office-frame" title="Alpha Traders HQ" src="agent-hq.html?v=65" loading="lazy"></iframe>
+    </section>
+
+    <!-- RIGHT: market data + team analysis + comms -->
+    <aside class="hub-col" id="hub-right">
+      <!-- GOLD TEAM -->
+      <div class="team-panel" id="gold-panel">
+        <div class="team-header gold-hdr">
+          <div><div class="team-name">🥇 GOLD TEAM</div>
+            <div style="font-size:6px;color:var(--gray);margin-top:2px">XAU/USD — Precious Metals</div></div>
+        </div>
+        <div id="gold-team-body">
+          <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)"><div class="pixel-loader"></div> Initializing Gold Team...</div>
+        </div>
       </div>
-    </div>
-    <div id="currency-team-body">
-      <!-- Rendered by UI.renderCurrencyTeam() -->
-      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">
-        <div class="pixel-loader"></div> Initializing Currency Team...
+      <!-- CURRENCY TEAM -->
+      <div class="team-panel" id="currency-panel" style="margin-top:10px">
+        <div class="team-header fx-hdr">
+          <div><div class="team-name fx">💱 CURRENCY TEAM</div>
+            <div style="font-size:6px;color:var(--gray);margin-top:2px">AUD/USD + EUR/USD — FX Desk</div></div>
+        </div>
+        <div id="currency-team-body">
+          <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)"><div class="pixel-loader"></div> Initializing Currency Team...</div>
+        </div>
       </div>
-    </div>
+      <!-- ACTIVITY LOG -->
+      <div id="log-panel" style="margin-top:10px">
+        <div class="log-header">📡 AGENT COMMS <span style="margin-left:auto;font-size:6px" class="updating">LIVE</span></div>
+        <div class="log-body" id="log-body"></div>
+      </div>
+    </aside>
   </div>
 
   <!-- ═══════ COMMANDER PANEL (hidden — superseded by EMPLOYEE BOARD) ═══════ -->
@@ -191,17 +216,6 @@
     </div>
   </div>
 
-  <!-- ═══════ ACTIVITY LOG ═══════ -->
-  <div id="log-panel">
-    <div class="log-header">
-      📡 AGENT COMMS
-      <span style="font-size:6px;color:var(--gray)">— Real-time agent activity feed</span>
-      <span style="margin-left:auto;font-size:6px" class="updating">LIVE</span>
-    </div>
-    <div class="log-body" id="log-body">
-      <!-- Populated by UI.addLog() -->
-    </div>
-  </div>
 
 </div><!-- #main -->
 
@@ -602,17 +616,17 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=64"></script>
-<script src="js/market.js?v=64"></script>
-<script src="js/agents.js?v=64"></script>
-<script src="js/ui.js?v=64"></script>
-<script src="js/extras.js?v=64"></script>
-<script src="js/ai-bridge.js?v=64"></script>
-<script src="js/gemini.js?v=64"></script>
-<script src="js/portfolio.js?v=64"></script>
-<script src="js/sprite-slicer.js?v=64"></script>
-<script src="js/backtest.js?v=64"></script>
-<script src="js/app.js?v=64"></script>
+<script src="js/i18n.js?v=65"></script>
+<script src="js/market.js?v=65"></script>
+<script src="js/agents.js?v=65"></script>
+<script src="js/ui.js?v=65"></script>
+<script src="js/extras.js?v=65"></script>
+<script src="js/ai-bridge.js?v=65"></script>
+<script src="js/gemini.js?v=65"></script>
+<script src="js/portfolio.js?v=65"></script>
+<script src="js/sprite-slicer.js?v=65"></script>
+<script src="js/backtest.js?v=65"></script>
+<script src="js/app.js?v=65"></script>
 
 <!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
 <div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
@@ -625,10 +639,20 @@
   function openAgentHQ() {
     const ov = document.getElementById('agenthq-overlay');
     const fr = document.getElementById('agenthq-frame');
-    if (!fr.src) fr.src = 'agent-hq.html?v=64';   // load once; data syncs live from parent
+    if (!fr.src) fr.src = 'agent-hq.html?v=65';   // load once; data syncs live from parent
     ov.style.display = 'block';
   }
   function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }
+  // collapse/expand the hub side panels (employees ◀ / data ▶)
+  function toggleHub(side) {
+    const grid = document.getElementById('hub-grid');
+    const col  = document.getElementById(side === 'left' ? 'hub-left' : 'hub-right');
+    const tab  = document.getElementById(side === 'left' ? 'hub-tab-left' : 'hub-tab-right');
+    const cls  = side === 'left' ? 'no-left' : 'no-right';
+    const off  = grid.classList.toggle(cls);
+    col.classList.toggle('collapsed', off);
+    if (tab) tab.textContent = off ? (side === 'left' ? '▶' : '◀') : (side === 'left' ? '◀' : '▶');
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && document.getElementById('agenthq-overlay').style.display === 'block') closeAgentHQ();
   });
