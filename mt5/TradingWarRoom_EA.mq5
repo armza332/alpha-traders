@@ -70,6 +70,7 @@ input double  PartialAtR         = 1.0;           // Take partial profit at +N×
 input double  PartialPct         = 50;            // % of position to close (the rest runs to TP)
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
 input double  MaxPerTradeRiskPct = 3.0;           // 🛡 Phase C.1: max risk % of equity on ONE trade (blocks oversized min-lot e.g. gold on small acct)
+input double  CryptoMinSLPct     = 0.6;           // 🪙 Phase C.5: min SL for BTC/ETH = % of price (ATR is too tight for crypto; 0 = off)
 
 input group "=== SYSTEM ==="
 input int     MagicNumber        = 992511;
@@ -424,6 +425,21 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
       PrintFormat("⚠️ %s SL too tight (%.5f, spread %.5f) → widened to %.5f",
                   sym, slDist, spreadDist, minDist);
       slDist = minDist;
+   }
+
+   // Phase C.5: crypto SL floor — ATR-based SL is far too tight vs BTC's price
+   // scale (gets stopped by noise). Widen to a % of price. The larger risk also
+   // makes the per-trade cap gate BTC on small accounts (won't trade until equity
+   // is big enough — exactly the behavior we want).
+   if (CryptoMinSLPct > 0) {
+      string _cb = sym; StringToUpper(_cb);
+      if (StringFind(_cb, "BTC") >= 0 || StringFind(_cb, "ETH") >= 0) {
+         double cryptoMin = entry * CryptoMinSLPct / 100.0;
+         if (slDist < cryptoMin) {
+            PrintFormat("🪙 %s crypto SL floor → %.2f%% of price (%.2f)", sym, CryptoMinSLPct, cryptoMin);
+            slDist = cryptoMin;
+         }
+      }
    }
 
    double tpDist = slDist * effRR;

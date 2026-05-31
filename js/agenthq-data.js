@@ -80,6 +80,8 @@ function _statusFrom(emp, d, st) {
   if (!d) return { status: 'idle', task: 'รอข้อมูล…', progress: 0, tasksToday };
   const sig = d.signal === 'buy' ? 'BUY' : d.signal === 'sell' ? 'SELL' : '';
   const pair = (d.sym || '').replace('USD', '');
+  if (d.blockedBy && /พัก/.test(d.blockedBy))
+    return { status: 'idle', task: '💤 พักอยู่', progress: 0, tasksToday };
   if (d.blockedBy && /ตลาดปิด/.test(d.blockedBy))
     return { status: 'idle', task: '🌙 ตลาดปิด — พัก', progress: 0, tasksToday };
   if (d.approved && sig)

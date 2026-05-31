@@ -3479,8 +3479,14 @@ const Company = {
       const rested = this.isRested(e.id);
       const mktClosed = best && best.blockedBy && best.blockedBy.indexOf('ตลาดปิด') >= 0;
       const sig = (best && !mktClosed && !rested) ? best.signal : 'wait';
-      const sigCol = rested ? '#8a7bb0' : mktClosed ? '#7c8aa5' : sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
-      const sigTxt = rested ? '💤 พัก' : mktClosed ? '🌙 ปิด' : sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
+      const approved = !!(best && best.approved);
+      const leaning = (sig === 'buy' || sig === 'sell') && !approved;   // มีสัญญาณแต่ยังไม่ผ่านเกณฑ์ = จ่อ
+      const sigCol = rested ? '#8a7bb0' : mktClosed ? '#7c8aa5'
+                   : leaning ? '#ffc44d'
+                   : sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
+      const sigTxt = rested ? '💤 พัก' : mktClosed ? '🌙 ปิด'
+                   : leaning ? (sig === 'buy' ? '🔭 จ่อ BUY' : '🔭 จ่อ SELL')
+                   : sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
       // fallback shown only until the sprite half-body loads (then it covers this)
       const head = `<span style="font-size:13px;font-weight:bold;color:${e.face.accColor}">${e.name[0]}</span>`;
       const stCol = st.R > 0 ? 'var(--green)' : st.R < 0 ? 'var(--red)' : '#9aa';
