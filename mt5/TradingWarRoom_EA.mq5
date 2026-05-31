@@ -1026,14 +1026,15 @@ void PushToWeb() {
       if (posInfo.Magic() != MagicNumber) continue;
       if (StringLen(posJson) > 0) posJson += ",";
       posJson += StringFormat(
-         "{\"sym\":\"%s\",\"side\":\"%s\",\"vol\":%.2f,\"open\":%.5f,\"sl\":%.5f,\"tp\":%.5f,\"profit\":%.2f}",
+         "{\"sym\":\"%s\",\"side\":\"%s\",\"vol\":%.2f,\"open\":%.5f,\"sl\":%.5f,\"tp\":%.5f,\"profit\":%.2f,\"comment\":\"%s\"}",
          posInfo.Symbol(),
          posInfo.PositionType() == POSITION_TYPE_BUY ? "buy" : "sell",
          posInfo.Volume(),
          posInfo.PriceOpen(),
          posInfo.StopLoss(),
          posInfo.TakeProfit(),
-         posInfo.Profit() + posInfo.Swap() + posInfo.Commission()
+         posInfo.Profit() + posInfo.Swap() + posInfo.Commission(),
+         posInfo.Comment()
       );
    }
 

@@ -97,7 +97,15 @@ window.AGENTHQ_SYNC = function () {
   if (!C || !C.EMPLOYEES || !window.SCENE || !window.SCENE.setAgentStatus) return;
   C.EMPLOYEES.forEach(emp => {
     const st = C._employeeStats ? C._employeeStats(emp.id) : null;
-    window.SCENE.setAgentStatus(emp.id, _statusFrom(emp, _decide(emp), st));
+    const hold = C._employeeHolding ? C._employeeHolding(emp) : null;
+    let patch;
+    if (hold) {
+      const pl = hold.profit || 0, sym = (hold.sym || '').replace(/[^A-Za-z].*$/, '');
+      patch = { status: 'working', task: `📈 ถือไม้ ${hold.side === 'buy' ? 'BUY' : 'SELL'} ${sym} · P/L ${pl >= 0 ? '+' : ''}$${pl.toFixed(2)}`, progress: 100, tasksToday: st ? st.signals : 0 };
+    } else {
+      patch = _statusFrom(emp, _decide(emp), st);
+    }
+    window.SCENE.setAgentStatus(emp.id, patch);
   });
 };
 

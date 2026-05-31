@@ -3358,6 +3358,26 @@ const Company = {
     if (typeof UI !== 'undefined' && UI.addLog) UI.addLog('CMD', 'Roster', '⏰ ปลุกพนักงานทั้งหมด — กลับมาทำงานครบทีม');
     this.refresh();
   },
+  // ── 📈 OPEN POSITION → owner employee (so "holding a live trade" shows everywhere) ──
+  _employeeHolding(emp) {
+    const bot = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    const pos = (bot && bot.positions) ? bot.positions : [];
+    if (!pos.length) return null;
+    const tag = emp.id.replace('emp_', '');
+    const baseSym = (s) => (s || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 6);
+    // 1) exact agent-tag match from the EA comment (e.g. TWR-S-bt-R35 → 'bt')
+    for (const p of pos) {
+      const parts = (p.comment || '').split('-');
+      if (parts.length >= 3 && parts[2] && parts[2] === tag) return p;
+    }
+    // 2) symbol fallback only when this employee is the SOLE owner of that pair
+    //    (e.g. BTC → Satoshi); avoids mis-crediting forex pairs with 2 traders.
+    if (emp.sym && this.EMPLOYEES.filter(x => x.sym === emp.sym).length === 1) {
+      const mine = pos.find(p => baseSym(p.sym) === emp.sym);
+      if (mine) return mine;
+    }
+    return null;
+  },
 
   // ── AUDIT LOG (per-employee signal history + outcomes) ──
   _AUDIT_KEY: 'twr_audit',
@@ -3477,14 +3497,18 @@ const Company = {
       const st = this._employeeStats(e.id);
       const activePair = winnerOf(e.id);
       const rested = this.isRested(e.id);
+      const holding = this._employeeHolding(e);   // live open position owned by this employee
       const mktClosed = best && best.blockedBy && best.blockedBy.indexOf('ตลาดปิด') >= 0;
       const sig = (best && !mktClosed && !rested) ? best.signal : 'wait';
       const approved = !!(best && best.approved);
       const leaning = (sig === 'buy' || sig === 'sell') && !approved;   // มีสัญญาณแต่ยังไม่ผ่านเกณฑ์ = จ่อ
-      const sigCol = rested ? '#8a7bb0' : mktClosed ? '#7c8aa5'
+      const hp = holding ? (holding.profit || 0) : 0;
+      const sigCol = holding ? (holding.side === 'buy' ? 'var(--green)' : 'var(--red)')
+                   : rested ? '#8a7bb0' : mktClosed ? '#7c8aa5'
                    : leaning ? '#ffc44d'
                    : sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
-      const sigTxt = rested ? '💤 พัก' : mktClosed ? '🌙 ปิด'
+      const sigTxt = holding ? `📈 ถือ ${(holding.sym||'').replace(/[^A-Za-z].*$/,'').replace('USD','')} ${holding.side==='buy'?'BUY':'SELL'}`
+                   : rested ? '💤 พัก' : mktClosed ? '🌙 ปิด'
                    : leaning ? (sig === 'buy' ? '🔭 จ่อ BUY' : '🔭 จ่อ SELL')
                    : sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
       // fallback shown only until the sprite half-body loads (then it covers this)
@@ -3495,7 +3519,10 @@ const Company = {
       // why is this employee (not) acting?
       const tdOn = (typeof Settings !== 'undefined') && Settings.get('traderDrivenSignals', false);
       let statusLine = '';
-      if (best && (sig === 'buy' || sig === 'sell')) {
+      if (holding) {
+        const pc = hp > 0 ? 'var(--green)' : hp < 0 ? 'var(--red)' : '#9aa';
+        statusLine = `<div style="font-size:6px;color:${pc};margin-top:3px">💼 ถือไม้อยู่ใน MT5: ${holding.side==='buy'?'BUY':'SELL'} ${(holding.sym||'').replace(/[^A-Za-z].*$/,'')} · P/L <b>${hp>=0?'+':''}$${hp.toFixed(2)}</b></div>`;
+      } else if (best && (sig === 'buy' || sig === 'sell')) {
         const p = best.sym.replace('USD','');
         if (best.approved) {
           statusLine = activePair
