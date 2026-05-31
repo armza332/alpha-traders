@@ -1055,6 +1055,7 @@ const AgentScores = {
         loserCount: losers.length,
         topAgents:  goodAgents.slice(0, 4),
         worstAgents: badAgents.slice(0, 3),
+        winnersSorted: winners.slice().sort((a, b) => b.R - a.R),   // ALL positive-R (no noise), best first
         score: winnerR + (winners.length * 5) - (losers.length * 3),
       };
     });
@@ -1108,12 +1109,46 @@ const AgentScores = {
     report += `\n💡 ระบบจะใช้ KB filter ต่อ — agent ที่ห่วยเฉพาะ symbol จะถูก skip อัตโนมัติ\n`;
     report += `\nดำเนินการต่อ?`;
 
+    report += `\n🧹 จะสร้างคอมโบใหม่จาก winner เท่านั้น (R>0) — ตัด noise/ตัวขาดทุนออกหมด\n`;
     if (!confirm(report)) return;
     this._doApply(enabledSyms, winners, universalLosers, ALL_AGENTS);
-    alert(`✅ Smart Apply Done!\n\nSymbols เปิด: ${enabledSyms.join(', ')}\nWinners: ${[...winners].join(', ')}`);
+    const combos = this._rebuildWinnerCombos(rec);   // 🧹 winners-only, no noise
+    if (typeof Company !== 'undefined') Company.refresh();
+    alert(`✅ Smart Apply Done! (winners ล้วน · ไม่มี noise)\n\nSymbols: ${enabledSyms.join(', ')}\nคอมโบใหม่:\n${combos.join('\n')}`);
     if (typeof Modal !== 'undefined') Modal.open('journal');
   },
 
+  // Phase C.6: rebuild each pair's employee combos from KB WINNERS ONLY (R>0) —
+  // this is what actually drives signals, so it guarantees no "noise"/loser agent
+  // ends up in any combo. Pair-locked employees get their symbol's top winners.
+  _rebuildWinnerCombos(rec) {
+    // full KB name → combo key (strip prefix; 'Gold-UT-Bot'→'utbot', 'AUD-OrderBlock'→'orderblock')
+    const toKey = (a) => {
+      const parts = ((a && a.name) || '').split('-'); parts.shift();
+      return parts.join('').toLowerCase().replace(/[^a-z]/g, '');
+    };
+    const symEmp = {
+      XAUUSD: { combos: ['xau_meanrev', 'xau_liquidity', 'blackglacier'], min: 3 },
+      AUDUSD: { combos: ['aud_trend', 'aud_meanrev'], min: 3 },
+      EURUSD: { combos: ['eur_trend', 'eur_structure'], min: 2 },
+    };
+    const changed = [];
+    rec.forEach(s => {
+      const cfg = symEmp[s.symbol]; if (!cfg) return;
+      const wins = (s.winnersSorted || []).map(a => toKey(a)).filter(Boolean);
+      if (wins.length < 2) return;                 // not enough proven winners → leave as-is
+      cfg.combos.forEach((cid, i) => {
+        if (!this.COMBOS[cid]) return;
+        // give variety: combo #0 gets top N, combo #1 rotates start by 1, etc.
+        const take = cid === 'blackglacier' ? 4 : 3;
+        const picked = wins.slice(i, i + take);
+        const agents = picked.length >= 2 ? picked : wins.slice(0, take);
+        this.COMBOS[cid].agents = agents;
+      });
+      changed.push(`${s.symbol.replace('USD','')}: ${wins.slice(0,4).join('+')}`);
+    });
+    return changed;
+  },
   // Phase 19: shared apply core (used by manual + auto)
   _doApply(enabledSyms, winners, universalLosers, ALL_AGENTS) {
     Settings.set('enableXAU', enabledSyms.includes('XAUUSD'));
@@ -1153,6 +1188,7 @@ const AgentScores = {
       if (!hasProfit) universalLosers.push(name);
     });
     this._doApply(enabledSyms, winners, universalLosers, ALL_AGENTS);
+    this._rebuildWinnerCombos(rec);   // 🧹 winners-only combos (no noise)
     const msg = `🤖 Auto-Apply: เปิด ${enabledSyms.join('+')} · winners ${[...winners].slice(0,5).join(', ')}`;
     if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Strategy', msg);
     if (typeof KeepAlive !== 'undefined') KeepAlive.notify('🤖 Strategy Auto-Apply', msg, {});
