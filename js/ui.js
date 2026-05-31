@@ -201,8 +201,50 @@ const UI = {
           <span class="val ${m.c || ''}">${m.v}</span>
         </div>`).join('')}
       ${extra}
+      ${this._analystEmployee(name, signal)}
       <div class="a-signal-row ${cls}">${this.sigText(signal)}</div>
     </div>`;
+  },
+
+  // map a display name → the KB agent short key
+  _kbShort(name) {
+    const m = { 'SMC':'SMC','SMC ANALYST':'SMC','ELLIOTT':'Elliott','ELLIOTT WAVE':'Elliott',
+      'FIB':'Fib','FIBONACCI':'Fib','RSI':'RSI','RSI / VALUE':'RSI','MACD':'MACD','BOLLINGER':'Bollinger',
+      'PIVOT':'Pivot','PATTERN':'Pattern','DIVERGENCE':'Divergence','MULTI-TF':'MTF','ICHIMOKU':'Ichimoku',
+      'DXY':'DXY','DXY (USD)':'DXY','UT-BOT':'UT-Bot','ORDER BLOCK':'OrderBlock','LIQ SWEEP':'Sweep',
+      'BREAKOUT':'Breakout','FAIR VALUE GAP':'FVG','FVG':'FVG','NEWS':'News' };
+    return m[(name || '').toUpperCase()] || name;
+  },
+  // real KB track record for an analyst on the current team symbol
+  _agentRecord(sym, name) {
+    if (typeof AgentScores === 'undefined') return null;
+    const prefix = sym === 'XAUUSD' ? 'Gold' : sym === 'AUDUSD' ? 'AUD' : sym === 'EURUSD' ? 'EUR' : sym === 'BTCUSD' ? 'BTC' : 'Gold';
+    const short = this._kbShort(name);
+    const kb = AgentScores.load();
+    const pick = (rec) => rec && (rec['sym_' + sym] || rec.all || rec);
+    let b = pick(kb.agents[prefix + '-' + short]) || pick(kb.agents[short]);
+    if (!b || !(b.t > 0)) return null;
+    return { acc: Math.round((b.w || 0) / b.t * 100), R: b.R || 0, t: b.t };
+  },
+  // "employee" footer — role accountability: backs/opposes the desk + real record
+  _analystEmployee(name, signal) {
+    const head = this._teamHeadSig || 'wait';
+    let agree;
+    if (signal === 'buy' || signal === 'sell') {
+      agree = (head === signal) ? '<span style="color:var(--green)">🤝 หนุนทีม</span>'
+            : (head === 'buy' || head === 'sell') ? '<span style="color:var(--orange)">↔ สวนทีม</span>'
+            : `<span style="color:var(--teal)">⚡ เสนอ ${signal === 'buy' ? 'BUY' : 'SELL'}</span>`;
+    } else { agree = '<span style="color:#778">⏸ ขอดูก่อน</span>'; }
+    let rec = '<span style="color:#667">🆕 เก็บสถิติ</span>';
+    try {
+      const r = this._agentRecord(this._teamSym, name);
+      if (r) {
+        const col = r.R > 0 ? 'var(--green)' : r.R < 0 ? 'var(--red)' : '#9aa';
+        const verdict = r.t >= 5 ? (r.acc >= 60 ? ' 🔥' : r.acc < 40 ? ' ⚠️' : '') : '';
+        rec = `<span style="color:${col}">📊 ${r.acc}% · ${r.R > 0 ? '+' : ''}${r.R.toFixed(1)}R · ${r.t}${verdict}</span>`;
+      }
+    } catch (e) {}
+    return `<div style="border-top:1px dashed #2a3550;margin-top:3px;padding-top:3px;display:flex;justify-content:space-between;gap:6px;font-size:6px">${agree}${rec}</div>`;
   },
 
   // ── FVG display ──
@@ -290,6 +332,7 @@ const UI = {
     const { agents, head, price, cfg } = report;
     const d  = cfg.digits - 1;
     const atr = cfg.atr;
+    this._teamSym = 'XAUUSD'; this._teamHeadSig = (head && head.signal) || 'wait';
 
     // SMC card (optional — may be disabled)
     const smcMetrics = agents.smc ? [
@@ -458,6 +501,7 @@ const UI = {
       if (!teamData) return '';
       const { agents, cfg } = teamData;
       const d = cfg.digits - 1;
+      this._teamSym = sym; this._teamHeadSig = teamData.signal || 'wait';
 
       const smcM = agents.smc ? [
         { l: 'Structure', v: agents.smc.report?.structure ?? '--', c: agents.smc.report?.structure === 'BULLISH' ? 'up' : 'dn' },
