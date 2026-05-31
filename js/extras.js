@@ -3273,8 +3273,8 @@ const Company = {
     const minConf = (typeof Settings !== 'undefined') ? Settings.get('traderMinConf', 80) : 80;
     const out = { emp, combo, sym, live, rec, wr, signal: live.signal, conf: live.conf, grade: '-', approved: false, blockedBy: null };
     if (this.isRested(emp.id)) { out.blockedBy = '💤 พักอยู่'; return out; }
-    if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
     if (!this._marketOpen(sym)) { out.blockedBy = '🌙 ตลาดปิด (เสาร์-อาทิตย์)'; return out; }
+    if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
     if (sym === 'BTCUSD' && typeof Settings !== 'undefined' && !Settings.get('enableBTC', true)) { out.blockedBy = 'ปิดพอร์ต BTC'; return out; }
     const bypassKB = (typeof Settings !== 'undefined') && Settings.get('tradeWithoutKB', false);
     const fullAgree = live.n > 0 && (live.buy === live.n || live.sell === live.n);
@@ -3491,9 +3491,18 @@ const Company = {
     const winnerOf = (empId) => Object.keys(winners).find(s => winners[s] && winners[s].emp.id === empId);
     const cards = this.EMPLOYEES.map(e => {
       const combo = this.COMBOS[e.combo];
-      // best decision across pairs (for display)
+      // best decision across pairs (for display) — prefer the most ACTIVE sym
+      // (approved > has-signal > open-market wait > market-closed) so a floating
+      // employee shows its tradeable pair (e.g. BTC) instead of "🌙 closed".
+      const _prio = (d) => (d.approved ? 3 : 0)
+        + ((d.signal === 'buy' || d.signal === 'sell') ? 2 : 0)
+        + ((d.blockedBy && d.blockedBy.indexOf('ตลาดปิด') >= 0) ? -2 : 0);
       let best = null;
-      this._SYMS.forEach(s => { if (e.sym && e.sym !== s) return; const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
+      this._SYMS.forEach(s => {
+        if (e.sym && e.sym !== s) return;
+        const d = this._empDecision(e, s, teamFor(s), bot);
+        if (!best || _prio(d) > _prio(best) || (_prio(d) === _prio(best) && (d.conf || 0) > (best.conf || 0))) best = d;
+      });
       const st = this._employeeStats(e.id);
       const activePair = winnerOf(e.id);
       const rested = this.isRested(e.id);
