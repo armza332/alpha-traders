@@ -2981,16 +2981,16 @@ const Company = {
     breakout:    { name:'Breakout',       icon:'🚀', agents:['breakout','utbot','pattern'],   desc:'เบรกกรอบ + เทรนด์หนุน + แท่งยืนยัน' },
     reversal_sr: { name:'Reversal @ S/R', icon:'🔄', agents:['pivot','rsi','pattern'],        desc:'ราคาถึงแนว S/R + RSI สุดขั้ว + แท่งกลับตัว' },
     wave:        { name:'Wave/Structure', icon:'🌊', agents:['elliott','fib','smc'],          desc:'นับ Elliott + Fib retrace + โครงสร้าง SMC' },
-    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['mtf','utbot','divergence'], desc:'คัดจาก KB จริง (คิด spread): MTF คุมเทรนด์ + UT-Bot (บวกทั้ง 3 คู่) + Divergence (AUD+45/EUR+50) — เข้าเฉพาะที่ยืนยันหลายชั้น เน้นคุณภาพ' },
+    claude_elite:{ name:'Claude Confluence', icon:'🧠', agents:['utbot','smc','rsi'], desc:'คัดจาก KB 459k: UT-Bot (บวกทุกคู่ AUD+98/EUR+62) + SMC (AUD+37) + RSI (EUR+25) — ตัดตัวขาดทุน (Divergence/MTF) ออก เน้น winner ล้วน' },
     // ── Phase 26.2: pair combos RE-TUNED from realistic (spread-modeled) KB ──
-    xau_meanrev:  { name:'Gold Range',     icon:'🥇', agents:['rsi','orderblock','ichimoku'],  desc:'ทอง (ออกข้าง/โครงสร้าง): RSI + Order Block + Ichimoku — KB ใหม่: Gold-OB +59R⭐ Ichimoku +52R RSI +20R (เด่นใน ranging)' },
-    xau_liquidity:{ name:'Gold Structure', icon:'🥇', agents:['smc','ichimoku','orderblock'],  desc:'ทอง (โครงสร้าง): SMC + Ichimoku + Order Block — KB ใหม่: Gold-SMC +37R OB +59R Ichimoku +52R' },
-    aud_trend:    { name:'Aussie Trend',   icon:'🇦🇺', agents:['utbot','divergence','mtf'],      desc:'AUD เทรนด์: UT-Bot + Divergence + MTF — KB ใหม่: AUD-UTBot +49R Divergence +45R' },
-    aud_meanrev:  { name:'Aussie Power',   icon:'🇦🇺', agents:['rsi','divergence','utbot'],      desc:'AUD สามตัวเทพ: RSI + Divergence + UT-Bot — KB ใหม่: RSI +54R⭐ UTBot +49R Div +45R (บวกทุก regime)' },
-    eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['utbot','divergence','mtf'],      desc:'EUR เทรนด์: UT-Bot + Divergence + MTF — KB ใหม่: EUR-UTBot +66R⭐ Divergence +50R (สองตัวแรงสุดของ EUR)' },
-    eur_structure:{ name:'Euro Momentum',  icon:'🇪🇺', agents:['utbot','sweep','mtf'],           desc:'EUR โมเมนตัม: UT-Bot + Sweep + MTF — KB ใหม่: UTBot +66R, Sweep เด่นตอน trending (+55R)' },
+    xau_meanrev:  { name:'Gold Elite',     icon:'🥇', agents:['elliott','fvg','bollinger'], desc:'ทอง (winner ล้วน): Elliott +43R⭐ + FVG +41R⭐ + Bollinger +18R — 3 ตัวกำไรสูงสุดของทองจาก KB 459k' },
+    xau_liquidity:{ name:'Gold Structure', icon:'🥇', agents:['smc','fvg','orderblock'],  desc:'ทอง (โครงสร้าง): SMC +6R + FVG +41R⭐ + Order Block +5R — เน้นโซน/ช่องว่างที่ KB ยืนยันบวก' },
+    aud_trend:    { name:'Aussie Trend',   icon:'🇦🇺', agents:['utbot','smc','ichimoku'],     desc:'AUD เทพสุด: UT-Bot +98R⭐⭐ + SMC +37R + Ichimoku +15R — 3 winner แท้ (ตัด Divergence −98R ออก)' },
+    aud_meanrev:  { name:'Aussie Power',   icon:'🇦🇺', agents:['utbot','smc','rsi'],          desc:'AUD power: UT-Bot +98R⭐⭐ + SMC +37R + RSI +4R — แทน Divergence ที่ขาดทุนหนัก' },
+    eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['utbot','rsi','sweep'],         desc:'EUR: UT-Bot +62R⭐ + RSI +25R + Sweep (กลางๆ) — สองตัวแรงสุดของ EUR (ตัด Divergence −62R)' },
+    eur_structure:{ name:'Euro Momentum',  icon:'🇪🇺', agents:['utbot','rsi','sweep'],          desc:'EUR โมเมนตัม: UT-Bot +62R⭐ + RSI +25R + Sweep — winner ของ EUR (เลิกใช้ MTF/Divergence ที่ลบ)' },
     // ── BlackGlacier: elite gold specialist — 4-factor confluence, max discipline ──
-    blackglacier: { name:'BlackGlacier Gold', icon:'🧊', agents:['mtf','ichimoku','orderblock','sweep'], desc:'ทองระดับกองทุน: MTF คุมเทรนด์ + Ichimoku เมฆ/regime + Order Block โซนสถาบัน + Sweep กวาด liquidity — ยืนยัน 4 ชั้น เข้าน้อยมากแต่แม่น มีวินัยสุด ไม่ออกซิกมั่ว' },
+    blackglacier: { name:'BlackGlacier Gold', icon:'🧊', agents:['fvg','elliott','bollinger','smc'], desc:'ทองระดับกองทุน (4 winner จาก KB): FVG +41R + Elliott +43R + Bollinger +18R + SMC +6R — ยืนยัน 4 ชั้นจากตัวที่กำไรจริง เข้าน้อยแต่แม่น (เลิกใช้ MTF/Ichimoku/Sweep ที่ลบ)' },
     // ── FirmSniper: prop-firm challenge specialist — hard-filter 5-layer confluence (single mega-agent) ──
     firm_sniper:  { name:'Firm Sniper', icon:'🎯', agents:['sniper'], desc:'พนักงานสอบกองทุน: hard filter 5 ชั้นพร้อมกัน — (1)ไม่มีข่าวแรง (2)Liquidity Sweep (3)โซน Discount/Premium (4)Order Block+FVG (5)Macro DXY ไม่สวน → ยิงเฉพาะ confluence เต็ม conf 95 ออกน้อยมาก winrate สูง drawdown ต่ำ เหมาะผ่าน challenge (ดีสุดในโหมด WEB/BOTH เพราะใช้ DXY+ข่าว)' },
     // ── BTC crypto desk — trades 24/7 incl. weekends; trend + momentum + breakout ──

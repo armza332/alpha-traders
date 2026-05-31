@@ -1737,10 +1737,11 @@ void GetComboKeys(string sym, string &keys[]) {
    // Phase C.2: FirmSniper hard-filter mode — one mega-agent on every pair
    if (EAUseFirmSniper) { ArrayResize(keys, 1); keys[0] = "sniper"; return; }
    // defaults (until the web pushes one)
-   if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="rsi";   keys[1]="divergence"; keys[2]="utbot"; }   // Aussie Power
-   else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }   // Euro Trend
-   else if (b == "XAUUSD") { ArrayResize(keys, 4); keys[0]="mtf"; keys[1]="ichimoku"; keys[2]="orderblock"; keys[3]="sweep"; } // BlackGlacier (4-factor)
-   else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="divergence"; keys[2]="mtf";   }
+   // Defaults retuned to KB 459k winners (EA-supported agents only):
+   if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="ichimoku"; } // UT-Bot+98 SMC+37 Ichi+15
+   else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="rsi";       keys[2]="sweep";    } // UT-Bot+62 RSI+25
+   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="fvg";   keys[1]="smc";       keys[2]="orderblock"; } // FVG+41 SMC+6 OB+5
+   else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="rsi";      }
 }
 
 // EA-local combo (Phase B): aggregate the symbol's combo agents. Fire only on
