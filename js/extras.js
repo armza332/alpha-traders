@@ -2520,6 +2520,17 @@ const Company = {
     }
     // solo FirmSniper
     if (has('firmsniper เดี่ยว','โหมดเดี่ยว','เฉพาะ firmsniper','ให้ firmsniper คนเดียว')) { this.setSoloEmployee('emp_fs'); return '🎯 โหมด FirmSniper เดี่ยวแล้วค่ะ — คนอื่นหยุดยิง'; }
+    // rest / wake employees (all)
+    if (has('พักทั้งหมด','พักทุกคน','ให้ทุกคนพัก','พักทีม')) { this.restAll(); return '💤 ให้พนักงานทุกคนพักแล้วค่ะ — หยุดออกสัญญาณทั้งทีม'; }
+    if (has('ปลุกทั้งหมด','ปลุกทุกคน','เรียกทุกคน','เข้างานทั้งหมด')) { this.wakeAll(); return '⏰ ปลุกพนักงานทุกคนกลับมาทำงานแล้วค่ะ'; }
+    // rest / wake a specific employee by name
+    if (has('พัก','ปลุก','เรียก','หยุดพนักงาน')) {
+      const who = this.EMPLOYEES.find(e => q.includes(e.name.toLowerCase()));
+      if (who) {
+        if (has('ปลุก','เรียก','กลับมา','เข้างาน')) { this.wakeEmployee(who.id); return `⏰ ปลุก ${who.name} กลับมาทำงานแล้วค่ะ`; }
+        this.restEmployee(who.id); return `💤 ให้ ${who.name} พักแล้วค่ะ — หยุดออกสัญญาณ`;
+      }
+    }
     // push combos to EA
     if (has('ส่ง combo','อัปเดต ea','อัพเดท ea','อัปเดตสูตร')) { this.pushCombosToEA(); return '🧬 ส่งสูตรคนเก่งสุดให้ EA แล้วค่ะ'; }
     // team report / who's best
@@ -3261,6 +3272,7 @@ const Company = {
     const wr   = rec.total > 0 ? (rec.w / rec.total * 100) : 0;
     const minConf = (typeof Settings !== 'undefined') ? Settings.get('traderMinConf', 80) : 80;
     const out = { emp, combo, sym, live, rec, wr, signal: live.signal, conf: live.conf, grade: '-', approved: false, blockedBy: null };
+    if (this.isRested(emp.id)) { out.blockedBy = '💤 พักอยู่'; return out; }
     if (live.signal !== 'buy' && live.signal !== 'sell') { out.blockedBy = 'ไม่มีสัญญาณ'; return out; }
     if (!this._marketOpen(sym)) { out.blockedBy = '🌙 ตลาดปิด (เสาร์-อาทิตย์)'; return out; }
     if (sym === 'BTCUSD' && typeof Settings !== 'undefined' && !Settings.get('enableBTC', true)) { out.blockedBy = 'ปิดพอร์ต BTC'; return out; }
@@ -3316,6 +3328,35 @@ const Company = {
     }
     alert(next ? `🎯 โหมดเดี่ยว ${emp ? emp.name : next}\n\nตอนนี้เฉพาะ ${emp ? emp.name : next} เท่านั้นที่ส่งสัญญาณ — คนอื่นหยุดเสนอ\n(กดปุ่มซ้ำเพื่อกลับเป็นทีมเต็ม)` : '👥 กลับเป็นทีมเต็มแล้ว — ทุกคนแข่งกันยิงตามปกติ');
     if (typeof Company !== 'undefined') Company.refresh();
+  },
+
+  // ── 💤 REST / ⏰ WAKE — pause employees individually or all (persisted) ──
+  _REST_KEY: 'twr_rested',
+  _loadRested() { try { return new Set(JSON.parse(localStorage.getItem(this._REST_KEY) || '[]')); } catch (e) { return new Set(); } },
+  _saveRested(set) { try { localStorage.setItem(this._REST_KEY, JSON.stringify([...set])); } catch (e) {} },
+  isRested(id) { if (!this._restedCache) this._restedCache = this._loadRested(); return this._restedCache.has(id); },
+  restEmployee(id) {
+    const s = this._loadRested(); s.add(id); this._saveRested(s); this._restedCache = s;
+    const e = this.EMPLOYEES.find(x => x.id === id);
+    if (typeof UI !== 'undefined' && UI.addLog) UI.addLog('CMD', 'Roster', `💤 ให้ ${e ? e.name : id} พัก — หยุดออกสัญญาณ`);
+    this.refresh();
+  },
+  wakeEmployee(id) {
+    const s = this._loadRested(); s.delete(id); this._saveRested(s); this._restedCache = s;
+    const e = this.EMPLOYEES.find(x => x.id === id);
+    if (typeof UI !== 'undefined' && UI.addLog) UI.addLog('CMD', 'Roster', `⏰ ปลุก ${e ? e.name : id} — กลับมาทำงาน`);
+    this.refresh();
+  },
+  toggleRest(id) { this.isRested(id) ? this.wakeEmployee(id) : this.restEmployee(id); },
+  restAll() {
+    const s = new Set(this.EMPLOYEES.map(e => e.id)); this._saveRested(s); this._restedCache = s;
+    if (typeof UI !== 'undefined' && UI.addLog) UI.addLog('CMD', 'Roster', '💤 ให้พนักงานทั้งหมดพัก — หยุดออกสัญญาณทุกคน');
+    this.refresh();
+  },
+  wakeAll() {
+    this._saveRested(new Set()); this._restedCache = new Set();
+    if (typeof UI !== 'undefined' && UI.addLog) UI.addLog('CMD', 'Roster', '⏰ ปลุกพนักงานทั้งหมด — กลับมาทำงานครบทีม');
+    this.refresh();
   },
 
   // ── AUDIT LOG (per-employee signal history + outcomes) ──
@@ -3435,10 +3476,11 @@ const Company = {
       this._SYMS.forEach(s => { if (e.sym && e.sym !== s) return; const d = this._empDecision(e, s, teamFor(s), bot); if (!best || d.score > best.score) best = d; });
       const st = this._employeeStats(e.id);
       const activePair = winnerOf(e.id);
+      const rested = this.isRested(e.id);
       const mktClosed = best && best.blockedBy && best.blockedBy.indexOf('ตลาดปิด') >= 0;
-      const sig = (best && !mktClosed) ? best.signal : 'wait';
-      const sigCol = mktClosed ? '#7c8aa5' : sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
-      const sigTxt = mktClosed ? '🌙 ปิด' : sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
+      const sig = (best && !mktClosed && !rested) ? best.signal : 'wait';
+      const sigCol = rested ? '#8a7bb0' : mktClosed ? '#7c8aa5' : sig === 'buy' ? 'var(--green)' : sig === 'sell' ? 'var(--red)' : '#778';
+      const sigTxt = rested ? '💤 พัก' : mktClosed ? '🌙 ปิด' : sig === 'buy' ? '▲ BUY' : sig === 'sell' ? '▼ SELL' : '⏸ WAIT';
       // fallback shown only until the sprite half-body loads (then it covers this)
       const head = `<span style="font-size:13px;font-weight:bold;color:${e.face.accColor}">${e.name[0]}</span>`;
       const stCol = st.R > 0 ? 'var(--green)' : st.R < 0 ? 'var(--red)' : '#9aa';
@@ -3457,7 +3499,8 @@ const Company = {
           statusLine = `<div style="font-size:6px;color:var(--orange);margin-top:3px">⛔ ${p}: ${best.blockedBy} — ยังไม่ออก</div>`;
         }
       }
-      return `<div class="twr-emp${activePair?' active':''}" style="flex:1;min-width:200px;padding:8px;border:1px solid ${activePair?sigCol:'var(--border)'};border-radius:6px;background:${activePair?sigCol+'14':'rgba(255,255,255,0.02)'};position:relative;${activePair?`color:${sigCol};`:''}">
+      return `<div class="twr-emp${activePair?' active':''}" style="flex:1;min-width:200px;padding:8px;border:1px solid ${rested?'#5b4d80':activePair?sigCol:'var(--border)'};border-radius:6px;background:${rested?'rgba(120,100,180,0.06)':activePair?sigCol+'14':'rgba(255,255,255,0.02)'};position:relative;opacity:${rested?'0.62':'1'};${activePair?`color:${sigCol};`:''}">
+        ${rested?'<div style="position:absolute;top:4px;right:6px;font-size:8px;color:#b6a8e0">💤 พัก</div>':''}
         ${bubble}
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <span class="twr-head" style="position:relative;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;background:#0b0f1a;border:1px solid ${e.face.accColor}66;border-radius:5px;width:40px;height:46px;flex:none;vertical-align:middle">${head}<img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" data-half="1" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center top;image-rendering:pixelated;pointer-events:none"></span>
@@ -3478,13 +3521,19 @@ const Company = {
           <span style="margin-left:auto">${ratingStars}</span>
         </div>
         ${statusLine}
-        <button onclick="Company.trainEmployee('${e.id}')" class="btn btn-secondary" style="font-size:7px;padding:2px 6px;margin-top:5px;width:100%">🎓 เทรน ${e.name}</button>
+        <div style="display:flex;gap:4px;margin-top:5px">
+          <button onclick="Company.toggleRest('${e.id}')" class="btn" title="${rested?'ปลุกให้กลับมาทำงาน':'ให้พัก หยุดออกสัญญาณ'}" style="font-size:7px;padding:2px 6px;flex:0 0 auto;border:1px solid ${rested?'var(--green)':'#5b4d80'};color:${rested?'var(--green)':'#b6a8e0'};background:transparent">${rested?'⏰ ปลุก':'💤 พัก'}</button>
+          <button onclick="Company.trainEmployee('${e.id}')" class="btn btn-secondary" style="font-size:7px;padding:2px 6px;flex:1">🎓 เทรน</button>
+        </div>
       </div>`;
     }).join('');
 
     return `<div style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--gold);font-weight:bold;margin-bottom:4px">👔 EMPLOYEE BOARD — ${this.EMPLOYEES.length} พนักงาน (1 คอมโบ/คน · แข่งกันออกซิก)
         <button onclick="Company.addCombo()" class="btn btn-secondary" style="font-size:7px;padding:2px 8px;margin-left:4px">+ จ้างพนักงาน/คอมโบใหม่</button>
+        <button onclick="Company.restAll()" class="btn" title="ให้พนักงานทุกคนพัก (หยุดออกสัญญาณ)" style="font-size:7px;padding:2px 8px;margin-left:4px;border:1px solid #5b4d80;color:#b6a8e0;background:transparent">💤 พักทั้งหมด</button>
+        <button onclick="Company.wakeAll()" class="btn" title="ปลุกพนักงานทุกคนกลับมาทำงาน" style="font-size:7px;padding:2px 8px;margin-left:4px;border:1px solid var(--green);color:var(--green);background:transparent">⏰ ปลุกทั้งหมด</button>
+        ${this._loadRested().size ? `<span style="font-size:7px;color:#b6a8e0;margin-left:4px">😴 พักอยู่ ${this._loadRested().size} คน</span>` : ''}
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>
       ${this._modeBar()}
