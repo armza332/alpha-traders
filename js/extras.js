@@ -3503,25 +3503,50 @@ const Company = {
     const ranked = this.EMPLOYEES.map(e => ({ e, st: this._employeeStats(e.id) }))
       .sort((a, b) => b.st.R - a.st.R || b.st.wr - a.st.wr);
     const medal = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
     const lb = ranked.map((r, i) => {
       const c = r.st.R > 0 ? 'var(--green)' : r.st.R < 0 ? 'var(--red)' : '#9aa';
       const combo = this.COMBOS[r.e.combo];
-      return `<tr style="font-size:7px"><td>${medal(i)}</td><td style="color:var(--gold)">${r.e.name}</td><td>${combo ? combo.name : '—'}</td><td>${r.st.signals}</td><td><span style="color:var(--green)">${r.st.w}</span>/<span style="color:var(--red)">${r.st.l}</span></td><td style="color:var(--teal)">${r.st.wr}%</td><td style="color:${c};font-weight:bold">${r.st.R > 0 ? '+' : ''}${r.st.R.toFixed(1)}R</td></tr>`;
+      return `<tr style="font-size:7px"><td>${medal(i)}</td><td style="color:var(--gold);${ell}">${r.e.name}</td><td style="${ell}" title="${combo?combo.name:''}">${combo ? combo.name : '—'}</td><td>${r.st.signals}</td><td style="white-space:nowrap"><span style="color:var(--green)">${r.st.w}</span>/<span style="color:var(--red)">${r.st.l}</span></td><td style="color:var(--teal)">${r.st.wr}%</td><td style="color:${c};font-weight:bold;white-space:nowrap">${r.st.R > 0 ? '+' : ''}${r.st.R.toFixed(1)}R</td></tr>`;
     }).join('');
-    const log = this._loadAudit().slice(-40).reverse().map(a => {
+    // ── only trades that ACTUALLY executed (have an outcome) — drop proposals ──
+    const log = this._loadAudit().filter(a => a.outcome).slice(-40).reverse().map(a => {
       const emp = this.EMPLOYEES.find(e => e.id === a.empId);
       const oc = a.outcome === 'win' ? '<span style="color:var(--green)">✓ win</span>'
-               : a.outcome === 'loss' ? '<span style="color:var(--red)">✗ loss</span>'
-               : '<span style="color:#778">รอผล</span>';
+               : a.outcome === 'loss' ? '<span style="color:var(--red)">✗ loss</span>' : '<span style="color:#9aa">BE</span>';
+      const rm = (a.rMult != null) ? ` <b>${a.rMult >= 0 ? '+' : ''}${(parseFloat(a.rMult) || 0).toFixed(1)}R</b>` : '';
+      const sig = a.signal === '-' ? 'EA' : a.signal;
+      const sc = a.signal === 'buy' ? 'var(--green)' : a.signal === 'sell' ? 'var(--red)' : '#9aa';
       const t = new Date(a.ts).toLocaleString('th-TH', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-      return `<tr style="font-size:6px"><td>${t}</td><td style="color:var(--gold)">${emp ? emp.name : a.empId}</td><td>${(a.sym||'').replace(/USD.*/,'')}</td><td style="color:${a.signal==='buy'?'var(--green)':'var(--red)'}">${a.signal}</td><td>G${a.grade}·${a.conf}%</td><td>${oc}</td></tr>`;
-    }).join('') || '<tr><td colspan="6" style="color:#778;text-align:center">— ยังไม่มีซิกถูกบันทึก —</td></tr>';
+      return `<tr style="font-size:6px"><td style="white-space:nowrap">${t}</td><td style="color:var(--gold);${ell}">${emp ? emp.name : a.empId}</td><td>${(a.sym||'').replace(/USD.*/,'')}</td><td style="color:${sc};white-space:nowrap">${sig}</td><td style="white-space:nowrap">${oc}${rm}</td></tr>`;
+    }).join('') || '<tr><td colspan="5" style="color:#778;text-align:center">— ยังไม่มีไม้ที่ออกสำเร็จ —</td></tr>';
+
+    // ── P/L summary: total / Web / Local (from real closed trades reported by EA) ──
+    const trades = (typeof BotBridge !== 'undefined' && BotBridge.allTrades) ? BotBridge.allTrades : [];
+    const agg = { all:{n:0,p:0,r:0,w:0}, web:{n:0,p:0,r:0,w:0}, local:{n:0,p:0,r:0,w:0} };
+    trades.forEach(t => {
+      if (!t || !t.outcome || t.outcome === 'breakeven') return;
+      const k = (t.agent === 'local' || t.agent === 'ea') ? 'local' : 'web';
+      [agg.all, agg[k]].forEach(g => { g.n++; g.p += parseFloat(t.profit) || 0; g.r += parseFloat(t.rMult) || 0; if (t.outcome === 'win') g.w++; });
+    });
+    const sCell = (label, g, col) => {
+      const pc = g.p > 0 ? 'var(--green)' : g.p < 0 ? 'var(--red)' : '#9aa';
+      return `<div style="flex:1;min-width:88px;border:1px solid ${col};border-radius:5px;padding:5px 7px;background:${col}14">
+        <div style="font-size:7px;color:${col};font-weight:bold">${label}</div>
+        <div style="font-size:12px;font-weight:bold;color:${pc}">${g.p >= 0 ? '+' : ''}$${g.p.toFixed(2)}</div>
+        <div style="font-size:6px;color:#9aa">${g.n} ไม้ · WR ${g.n ? Math.round(g.w / g.n * 100) : 0}% · ${g.r >= 0 ? '+' : ''}${g.r.toFixed(1)}R</div>
+      </div>`;
+    };
+    const summary = `<div style="display:flex;gap:6px;margin-bottom:8px">${sCell('💰 รวมทั้งหมด', agg.all, 'var(--gold)')}${sCell('🌐 Web', agg.web, 'var(--teal)')}${sCell('⚡ Local (EA)', agg.local, 'var(--purple)')}</div>`;
+
     return `<div style="margin-bottom:8px;padding:8px;border:1px solid var(--purple);border-radius:6px;background:rgba(120,80,255,0.05)">
       <button onclick="Company.toggleAudit()" class="btn btn-secondary" style="font-size:8px;padding:3px 10px;margin-bottom:6px">📋 ปิด Audit ▲</button>
-      <div style="font-size:8px;color:var(--purple);font-weight:bold;margin-bottom:3px">🏆 LEADERBOARD — พนักงานเรียงตามผลจริง (R)</div>
-      <table class="j-table" style="width:100%"><thead><tr style="font-size:6px"><th>#</th><th>พนักงาน</th><th>คอมโบ</th><th>ซิก</th><th>W/L</th><th>WR</th><th>R</th></tr></thead><tbody>${lb}</tbody></table>
-      <div style="font-size:8px;color:var(--purple);font-weight:bold;margin:8px 0 3px">📜 AUDIT LOG — 40 ซิกล่าสุด (ตรวจสอบได้ทุกไม้)</div>
-      <div class="j-table-wrap" style="max-height:180px;overflow:auto"><table class="j-table" style="width:100%"><thead><tr style="font-size:6px"><th>เวลา</th><th>พนักงาน</th><th>คู่</th><th>ทิศ</th><th>เกรด</th><th>ผล</th></tr></thead><tbody>${log}</tbody></table></div>
+      <div style="font-size:8px;color:var(--gold);font-weight:bold;margin-bottom:4px">📊 สรุปกำไรจริง (ไม้ที่ปิดแล้ว · จาก MT5)</div>
+      ${summary}
+      <div style="font-size:8px;color:var(--purple);font-weight:bold;margin-bottom:3px">🏆 LEADERBOARD — เรียงตามผลจริง (R)</div>
+      <table class="j-table" style="width:100%;table-layout:fixed"><colgroup><col style="width:22px"><col style="width:62px"><col><col style="width:30px"><col style="width:38px"><col style="width:34px"><col style="width:48px"></colgroup><thead><tr style="font-size:6px"><th>#</th><th>พนักงาน</th><th>คอมโบ</th><th>ซิก</th><th>W/L</th><th>WR</th><th>R</th></tr></thead><tbody>${lb}</tbody></table>
+      <div style="font-size:8px;color:var(--purple);font-weight:bold;margin:8px 0 3px">📜 ไม้ที่ออกสำเร็จ — ล่าสุด</div>
+      <div class="j-table-wrap" style="max-height:170px;overflow:auto"><table class="j-table" style="width:100%;table-layout:fixed"><colgroup><col style="width:62px"><col style="width:66px"><col style="width:34px"><col style="width:34px"><col></colgroup><thead><tr style="font-size:6px"><th>เวลา</th><th>พนักงาน</th><th>คู่</th><th>ทิศ</th><th>ผล</th></tr></thead><tbody>${log}</tbody></table></div>
     </div>`;
   },
 
