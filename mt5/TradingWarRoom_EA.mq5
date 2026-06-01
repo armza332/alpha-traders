@@ -73,6 +73,16 @@ input double  MaxPerTradeRiskPct = 4.0;           // 🛡 Phase C.1: max risk % 
 input double  CryptoMinSLPct     = 0.6;           // 🪙 Phase C.5: min SL for BTC/ETH = % of price (ATR is too tight for crypto; 0 = off)
 input double  XauMinSLPct        = 0.15;          // 🥇 Phase C.8: min SL for gold (XAU) = % of price (~$7 on $4500; stops gold noise-stop; 0 = off)
 
+input group "=== SAFETY GUARDS (Phase D) ==="
+input double  MaxDailyLossPct    = 5.0;           // 🛑 หยุดเทรดทั้งวันเมื่อขาดทุนรวมวันนี้ ≥ % ของพอร์ตต้นวัน (0 = off)
+input int     MaxConsecLosses    = 4;             // 🛑 พัก/หยุดเมื่อแพ้ติดกันครบ N ไม้ (รีเซ็ตเมื่อชนะหรือขึ้นวันใหม่; 0 = off)
+input bool    ResumeNextDay      = true;          // ✅ วันใหม่ปลดล็อกอัตโนมัติ (false = ค้างไว้จนกดปุ่ม RESUME เอง)
+input double  MaxSpreadAtrPct    = 40.0;          // 🛑 งดเข้าไม้เมื่อ spread > % ของ ATR (ข่าว/rollover spread พุ่ง = -EV; 0 = off)
+input int     MaxSpreadPts       = 0;             // 🛑 งดเข้าไม้เมื่อ spread เกิน N points (เพดานสัมบูรณ์เสริม; 0 = off)
+input int     BrokerGmtOffset    = 3;             // 🕐 broker = UTC + ค่านี้ (Exness ≈ +3 ฤดูร้อน / +2 หนาว) — แก้ session filter ให้ตรงจริง
+input int     SessionStartUTC    = 8;             // 🕐 ชั่วโมงเริ่มเทรด (UTC) — London open
+input int     SessionEndUTC      = 17;            // 🕐 ชั่วโมงเลิกเทรด (UTC) — NY afternoon
+
 input group "=== SYSTEM ==="
 input int     MagicNumber        = 992511;
 input bool    EnableAlerts       = true;
@@ -136,6 +146,8 @@ int           nActiveSyms = 0;       // dynamically counted in OnInit
 bool          runEnabled[MAX_SYMS];  // Phase 12.9: runtime per-symbol toggle (web can flip)
 int           tradesToday_W = 0, tradesToday_L = 0;
 double        pnlToday      = 0;
+int           gConsecLosses = 0;     // Phase D: trailing consecutive losing closes today
+bool          gDailyHalt    = false; // Phase D: daily-loss / losing-streak halt active
 
 // Phase 12.7: Effective strategy params (swap when ScalpMode toggles)
 ENUM_TIMEFRAMES effTF;
@@ -290,6 +302,21 @@ void OnTick() {
    // Update today's stats (after each new bar)
    UpdateTodayStats();
 
+   // Phase D: daily-loss / losing-streak circuit breaker. Manage open trades
+   // (BE/trailing still run) but open NO new entries until the day resets
+   // (or, if ResumeNextDay=false, until the trader clicks RESUME).
+   if (DailyGuardActive()) {
+      static datetime lastHaltLog = 0;
+      if (TimeCurrent() - lastHaltLog > 300) {
+         PrintFormat("🛑 DAILY GUARD — entries halted (today P/L $%.2f, %d losses in a row). Resume: %s",
+                     pnlToday, gConsecLosses, ResumeNextDay ? "auto next day" : "manual RESUME");
+         lastHaltLog = TimeCurrent();
+      }
+      if (!ResumeNextDay) eaPaused = true;   // latch — needs manual RESUME
+      ManagePositions();
+      return;
+   }
+
    // Phase 12.4: skip trading if paused remotely
    if (eaPaused) return;
 
@@ -424,6 +451,23 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
    // from the widened slDist below, so the risk % stays the same.
    double pt         = SymbolInfoDouble(sym, SYMBOL_POINT);
    double spreadDist = ask - bid;
+
+   // Phase D: abnormal-spread guard — skip the entry when the spread blows out
+   // (news / rollover / thin liquidity). Widening the SL alone is not enough:
+   // entering at a blown spread is instantly underwater and -EV. Self-scaling
+   // off ATR so it works on any symbol; optional absolute points cap on top.
+   if (pt > 0) {
+      double spPts = spreadDist / pt;
+      bool blown = false;
+      if (MaxSpreadAtrPct > 0 && atr > 0 && spreadDist > atr * MaxSpreadAtrPct / 100.0) blown = true;
+      if (MaxSpreadPts   > 0 && spPts > MaxSpreadPts)                                    blown = true;
+      if (blown) {
+         PrintFormat("🛑 %s SKIP — spread %.1f pts กว้างผิดปกติ (ATR %.5f, max %.0f%%) — งดเข้าไม้",
+                     sym, spPts, atr, MaxSpreadAtrPct);
+         return;
+      }
+   }
+
    double minByStop  = (double)SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL) * pt;
    double minDist    = MathMax(minByStop, spreadDist * 3.0);   // SL ≥ 3× spread
    if (slDist < minDist) {
@@ -669,9 +713,12 @@ void ManagePositions() {
 bool IsLondonNYSession() {
    MqlDateTime t;
    TimeCurrent(t);
-   int h = t.hour;
-   // London 8-12 UTC, NY 13-17 UTC → broker H = UTC + offset
-   return (h >= 8 && h < 17);
+   // Phase D fix: TimeCurrent() is BROKER server time (= UTC + BrokerGmtOffset),
+   // not UTC. Convert to UTC before testing the London/NY window, otherwise the
+   // filter is shifted by the broker offset (was trading Asia tail, cutting NY).
+   int utcH = (t.hour - BrokerGmtOffset) % 24;
+   if (utcH < 0) utcH += 24;
+   return (utcH >= SessionStartUTC && utcH < SessionEndUTC);
 }
 
 //═══════════════════ TODAY STATS ════════════════════════════════════
@@ -684,6 +731,7 @@ datetime StartOfDay() {
 
 void UpdateTodayStats() {
    tradesToday_W = 0; tradesToday_L = 0; pnlToday = 0;
+   int streak = 0;   // Phase D: trailing consecutive-loss count (chronological)
    if (!HistorySelect(StartOfDay(), TimeCurrent())) return;
    int n = HistoryDealsTotal();
    for (int i = 0; i < n; i++) {
@@ -693,10 +741,24 @@ void UpdateTodayStats() {
       double profit = HistoryDealGetDouble(t, DEAL_PROFIT)
                     + HistoryDealGetDouble(t, DEAL_SWAP)
                     + HistoryDealGetDouble(t, DEAL_COMMISSION);
-      if (profit > 0)      tradesToday_W++;
-      else if (profit < 0) tradesToday_L++;
+      if (profit > 0)      { tradesToday_W++; streak = 0; }       // a win breaks the streak
+      else if (profit < 0) { tradesToday_L++; streak++; }         // breakeven leaves streak as-is
       pnlToday += profit;
    }
+   gConsecLosses = streak;
+}
+
+// Phase D: returns true when the daily-loss limit or the losing-streak limit is hit.
+// Realized-P/L baseline (day-start balance ≈ current balance − today's realized P/L)
+// so it auto-resets at the new trading day.
+bool DailyGuardActive() {
+   gDailyHalt = false;
+   if (MaxConsecLosses > 0 && gConsecLosses >= MaxConsecLosses) gDailyHalt = true;
+   if (MaxDailyLossPct > 0 && pnlToday < 0) {
+      double dayStart = AccountInfoDouble(ACCOUNT_BALANCE) - pnlToday;
+      if (dayStart > 0 && (-pnlToday / dayStart * 100.0) >= MaxDailyLossPct) gDailyHalt = true;
+   }
+   return gDailyHalt;
 }
 
 //═══════════════════ ON-CHART DASHBOARD — BOSS MODE ════════════════
@@ -973,8 +1035,8 @@ void UpdateDashboard() {
 
    string webStatus = (StringLen(WebhookURL) > 10) ? StringFormat("WEB %ds OK", WebPushSec) : "WEB OFF";
    color  webClr    = (StringLen(WebhookURL) > 10) ? C'0,255,200' : C'128,128,128';
-   string trade_status = eaPaused ? "▮▮ PAUSED" : "▶ TRADING";
-   color  tradeClr  = eaPaused ? C'255,140,0' : C'0,255,100';
+   string trade_status = gDailyHalt ? "🛑 DAY-HALT" : eaPaused ? "▮▮ PAUSED" : "▶ TRADING";
+   color  tradeClr  = gDailyHalt ? C'255,60,60' : eaPaused ? C'255,140,0' : C'0,255,100';
 
    string modeStr = (gSignalMode == 1) ? "⚡EA" : (gSignalMode == 2) ? "🔀BOTH" : "🌐WEB";
    DashLabel("SYS_LINE1", DASH_X+16, y+22,
