@@ -65,7 +65,7 @@ input double  BreakevenLockR     = 0.1;           // Lock +0.1R profit (cover sp
 input bool    UseTrailing        = true;          // 🪤 Trail SL after breakeven
 input double  TrailStartR        = 1.5;           // Start trailing at +N×R (ใช้เมื่อ TrailFromBE = false)
 input double  TrailStepR         = 0.5;           // Trail by N×R steps (ระยะ SL ตามหลังราคา)
-input bool    TrailFromBE        = true;          // 🪤 Phase D.3: เริ่ม trail ตั้งแต่จุด breakeven (ปิด dead zone — กัน runner หลัง partial ค้างไม่ปิด)
+input bool    TrailFromBE        = true;          // 🪤 Phase D.4: runner ที่แบ่งปิดแล้ว → trail จาก breakeven (กันค้างไม่ปิด) · ไม้เดี่ยวทุนน้อย → ยังวิ่งยาวถึง TP
 input bool    UsePartialTP       = true;          // 💰 Phase 26: close part of position at +N×R (auto-skips if lot can't split)
 input double  PartialAtR         = 1.0;           // Take partial profit at +N×R
 input double  PartialPct         = 50;            // % of position to close (the rest runs to TP)
@@ -664,6 +664,9 @@ void ManagePositions() {
             if (closeVol >= minLot && (vol - closeVol) >= minLot) {
                if (trade.PositionClosePartial(posInfo.Ticket(), closeVol)) {
                   GlobalVariableSet(gvKey, 1);
+                  // Phase D.4: mark this position as a RUNNER (a real partial was
+                  // taken). Only runners get trail-from-breakeven (see trailing block).
+                  GlobalVariableSet("TWR_RUN_" + IntegerToString((long)posInfo.Ticket()), 1);
                   PrintFormat("💰 %s partial TP: closed %.2f of %.2f lot at +%.2fR — runner to breakeven",
                               sym, closeVol, vol, profitR);
                }
@@ -688,12 +691,14 @@ void ManagePositions() {
       }
 
       // ── Trailing stop ──
-      // Phase D.3: when TrailFromBE, start trailing right at the breakeven point
-      // (BreakevenAtR) instead of waiting for TrailStartR. This closes the dead
-      // zone where a post-partial runner sat with SL at breakeven and TP far away,
-      // oscillating without ever closing. From there the SL trails TrailStepR behind
-      // price, so any ~TrailStepR pullback closes the runner in profit.
-      double trailStart = TrailFromBE ? MathMin(BreakevenAtR, TrailStartR) : TrailStartR;
+      // Phase D.4: trail-from-breakeven applies ONLY to a RUNNER (a position we
+      // actually took a partial on). Those would otherwise languish between the
+      // breakeven SL and a far TP, oscillating without closing — so we start
+      // trailing right at the breakeven point and let the SL follow TrailStepR
+      // behind price. A single-lot trade (couldn't split, e.g. a $30 account)
+      // keeps the classic TrailStartR so it runs to TP instead of being cut short.
+      bool   isRunner   = GlobalVariableCheck("TWR_RUN_" + IntegerToString((long)posInfo.Ticket()));
+      double trailStart = (TrailFromBE && isRunner) ? MathMin(BreakevenAtR, TrailStartR) : TrailStartR;
       if (UseTrailing && profitR >= trailStart) {
          // Trail SL to lock (profitR - TrailStepR) of distance
          double lockR = profitR - TrailStepR;
@@ -2022,9 +2027,10 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
          Print("💰 Partial close — runner still open; record/flag kept until full close");
          return;
       }
-      // FULL close — record the trade + clear the partial-TP flag
+      // FULL close — record the trade + clear the partial-TP / runner flags
       SendTradeRecord(trans.deal);
       GlobalVariableDel("TWR_PART_" + IntegerToString((long)pid));
+      GlobalVariableDel("TWR_RUN_"  + IntegerToString((long)pid));   // Phase D.4
    }
 }
 
