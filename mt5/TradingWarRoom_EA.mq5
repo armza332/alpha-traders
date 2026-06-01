@@ -69,7 +69,7 @@ input bool    UsePartialTP       = true;          // 💰 Phase 26: close part o
 input double  PartialAtR         = 1.0;           // Take partial profit at +N×R
 input double  PartialPct         = 50;            // % of position to close (the rest runs to TP)
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
-input double  MaxPerTradeRiskPct = 3.0;           // 🛡 Phase C.1: max risk % of equity on ONE trade (blocks oversized min-lot e.g. gold on small acct)
+input double  MaxPerTradeRiskPct = 4.0;           // 🛡 Phase C.1: max risk % of equity on ONE trade (4% = gold ~$100+ trades some setups; blocks BTC until bigger)
 input double  CryptoMinSLPct     = 0.6;           // 🪙 Phase C.5: min SL for BTC/ETH = % of price (ATR is too tight for crypto; 0 = off)
 
 input group "=== SYSTEM ==="
