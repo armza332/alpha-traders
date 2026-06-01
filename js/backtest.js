@@ -96,6 +96,15 @@ const Backtest = {
       const slipPx = spreadPx * 0.5;   // Phase 26.2: losers fill ~half a spread worse
       const commR  = (typeof Settings !== 'undefined') ? Settings.get('btCommissionR_' + symbol, 0) : 0;
 
+      // Phase D.7: mirror the EA's ManagePositions so the backtest reflects how the
+      // EA ACTUALLY exits (breakeven → partial → runner trail), not a naive SL/TP.
+      // Values = the EA's input defaults; adjust here if you change them on the EA.
+      const M = {
+        useBE: true,  beAtR: 1.0,  beLockR: 0.1,
+        usePartial: true, partialAtR: 1.0, partialPct: 50,
+        useTrail: true, trailFromBE: true, trailStartR: 1.5, trailStepR: 0.5,
+      };
+
       const trades = [];
       const equityCurve = [];
       let equity = 0;
@@ -111,27 +120,61 @@ const Backtest = {
         // ── ตรวจ exit ของ trade ที่เปิดอยู่ ──
         if (openTrade) {
           const isLong = openTrade.signal === 'buy';
-          const hitSL = isLong ? c.low  <= openTrade.sl : c.high >= openTrade.sl;
-          const hitTP = isLong ? c.high >= openTrade.tp : c.low  <= openTrade.tp;
-          const slDist = Math.abs(openTrade.entry - openTrade.sl) || 1e-9;
-          const costR  = spreadPx / slDist + commR;   // entry spread + commission, every trade
-          const slipR  = slipPx / slDist;              // extra slippage on stop-outs
+          const rDist  = Math.abs(openTrade.entry - openTrade.sl) || 1e-9;
+          const costR  = spreadPx / rDist + commR;   // entry spread + commission (charged once, on full size)
+          const slipR  = slipPx / rDist;              // extra slippage on real stop-outs
 
-          if (hitSL && hitTP) {
-            // ทั้งสองชนกัน → assume SL ก่อน (conservative)
-            openTrade.exit = openTrade.sl;
-            openTrade.outcome = 'loss';
-            openTrade.r = -1 - costR - slipR;
-            openTrade.exitIdx = i;
-          } else if (hitSL) {
-            openTrade.exit = openTrade.sl;
-            openTrade.outcome = 'loss';
-            openTrade.r = -1 - costR - slipR;
-          } else if (hitTP) {
-            openTrade.exit = openTrade.tp;
-            openTrade.outcome = 'win';
-            openTrade.r = +rrFactor - costR;
-            openTrade.exitIdx = i;
+          // lazy-init the EA-style management state on first bar after entry
+          if (openTrade.slCur === undefined) {
+            openTrade.slCur = openTrade.sl;   // moving stop (price) — breakeven/trailing shift this
+            openTrade.maxFavR = 0;            // best profit (in R) reached so far
+            openTrade.remaining = 1.0;        // fraction of position still open
+            openTrade.bankedR = 0;            // R already booked from a partial close
+            openTrade.partialDone = false;
+          }
+
+          // current stop in R: <0 = real stop-loss, >=0 = locked-in profit (after breakeven/trail)
+          const slR  = isLong ? (openTrade.slCur - openTrade.entry) / rDist
+                              : (openTrade.entry - openTrade.slCur) / rDist;
+          const favR = isLong ? (c.high - openTrade.entry) / rDist
+                              : (openTrade.entry - c.low ) / rDist;   // best excursion this bar
+          const slHit = isLong ? c.low  <= openTrade.slCur : c.high >= openTrade.slCur;
+          const tpHit = isLong ? c.high >= openTrade.tp     : c.low  <= openTrade.tp;
+
+          // Conservative ordering: any stop touch fills before TP in the same bar.
+          let exitR = null;
+          if (slHit)      exitR = (slR < 0) ? slR - slipR : slR;   // real stop (+slip) or locked-profit stop
+          else if (tpHit) exitR = rrFactor;                        // full take-profit
+
+          if (exitR !== null) {
+            // total = partial already banked + remaining slice exiting now − entry cost (full size)
+            openTrade.r = openTrade.bankedR + openTrade.remaining * exitR - costR;
+            openTrade.exit = (exitR === rrFactor) ? openTrade.tp : openTrade.slCur;
+            openTrade.outcome = openTrade.r > 0 ? 'win' : 'loss';
+          } else {
+            // no exit yet — advance EA-style management for the next bars
+            if (favR > openTrade.maxFavR) openTrade.maxFavR = favR;
+            const mfe = openTrade.maxFavR;
+            // partial TP at +partialAtR (book PartialPct%, let the runner ride)
+            if (M.usePartial && !openTrade.partialDone && mfe >= M.partialAtR) {
+              const part = M.partialPct / 100;
+              openTrade.bankedR  += part * M.partialAtR;
+              openTrade.remaining = Math.max(0, openTrade.remaining - part);
+              openTrade.partialDone = true;
+            }
+            // breakeven: lock +beLockR once +beAtR is reached
+            if (M.useBE && mfe >= M.beAtR) {
+              const beP = isLong ? openTrade.entry + M.beLockR * rDist : openTrade.entry - M.beLockR * rDist;
+              if (isLong ? beP > openTrade.slCur : beP < openTrade.slCur) openTrade.slCur = beP;
+            }
+            // trailing: runner (after partial) trails from breakeven when TrailFromBE; else from trailStartR
+            const isRunner = openTrade.partialDone;
+            const trailStart = (M.useTrail && M.trailFromBE && isRunner) ? Math.min(M.beAtR, M.trailStartR) : M.trailStartR;
+            if (M.useTrail && mfe >= trailStart) {
+              const lockR = mfe - M.trailStepR;
+              const tP = isLong ? openTrade.entry + lockR * rDist : openTrade.entry - lockR * rDist;
+              if (isLong ? tP > openTrade.slCur : tP < openTrade.slCur) openTrade.slCur = tP;
+            }
           }
 
           if (openTrade.outcome) {
