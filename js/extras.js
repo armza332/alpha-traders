@@ -3752,7 +3752,13 @@ const Company = {
   // Vetted default per pair = the SAME combo the EA already runs by default,
   // so a push never downgrades the EA — it only changes once an employee has
   // PROVEN (≥5 real trades) a better R.
-  _DEFAULT_EMP: { XAUUSD: 'emp_bg', AUDUSD: 'emp_rv', EURUSD: 'emp_wv' },
+  // Phase D.6: these MUST match the EA's hardcoded default combos (GetComboKeys):
+  //   XAU = elliott/fvg/bollinger (Mina/xau_meanrev) · AUD = utbot/smc/ichimoku
+  //   (Trent/aud_trend) · EUR = utbot/rsi/sweep (Willa/eur_trend). If they differ,
+  //   EA-local trades get credited to an employee whose combo the EA isn't running.
+  //   BlackGlacier (emp_bg) stays on the gold roster as a competing specialist —
+  //   it takes over once its KB record beats Mina's (best proven ≥5, via _eaComboFor).
+  _DEFAULT_EMP: { XAUUSD: 'emp_mr', AUDUSD: 'emp_tr', EURUSD: 'emp_wv' },
   // Single source of truth: which combo (and its agent kit) the EA runs for a
   // pair = the best PROVEN employee's combo (≥5 matched trades), else the vetted
   // default. Used by BOTH pushCombosToEA (sends it to the EA) and the live
