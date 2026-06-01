@@ -1712,7 +1712,123 @@ AgentOut AgentSniper(string sym, ENUM_TIMEFRAMES tf) {
    return o;
 }
 
-// Dispatch an agent by key (all combo agents now ported)
+//═══════════════ PHASE C.7: web-parity agents (real MT5 data) ═══════════════
+// 🎈 Bollinger — mean-reversion + squeeze/expansion (iBands 20,2)
+AgentOut AgentBollinger(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   int h = iBands(sym, tf, 20, 0, 2.0, PRICE_CLOSE);
+   if (h == INVALID_HANDLE) return o;
+   double up[], mid[], lo[]; ArraySetAsSeries(up, true); ArraySetAsSeries(mid, true); ArraySetAsSeries(lo, true);
+   bool ok = (CopyBuffer(h, 1, 1, 6, up) == 6 && CopyBuffer(h, 0, 1, 6, mid) == 6 && CopyBuffer(h, 2, 1, 6, lo) == 6);
+   IndicatorRelease(h);
+   if (!ok || mid[0] == 0) return o;
+   MqlRates r[]; ArraySetAsSeries(r, true); if (CopyRates(sym, tf, 1, 1, r) < 1) return o;
+   double last = r[0].close;
+   double bw = (up[0] - lo[0]) / mid[0] * 100.0, avg = 0;
+   for (int i = 0; i < 6; i++) avg += (up[i] - lo[i]) / mid[i] * 100.0;
+   avg /= 6.0;
+   bool squeeze = bw < avg * 0.7, expanding = bw > avg * 1.3;
+   double score = 0;
+   if (last > up[0]) score -= 15; if (last < lo[0]) score += 15;
+   if (squeeze) score *= 0.5;
+   if (expanding && last > mid[0]) score += 10; if (expanding && last < mid[0]) score -= 10;
+   o.dir  = score >= 15 ? 1 : score <= -15 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.1);
+   return o;
+}
+// 📈 MACD — momentum crossover (iMACD 12,26,9)
+AgentOut AgentMACD(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   int h = iMACD(sym, tf, 12, 26, 9, PRICE_CLOSE);
+   if (h == INVALID_HANDLE) return o;
+   double m[], s[]; ArraySetAsSeries(m, true); ArraySetAsSeries(s, true);
+   bool ok = (CopyBuffer(h, 0, 1, 2, m) == 2 && CopyBuffer(h, 1, 1, 2, s) == 2);
+   IndicatorRelease(h);
+   if (!ok) return o;
+   double hN = m[0] - s[0], hP = m[1] - s[1];
+   bool bull = hP < 0 && hN > 0, bear = hP > 0 && hN < 0, rising = hN > hP, above = m[0] > 0;
+   double score = 0;
+   if (bull) score += 30; if (bear) score -= 30;
+   if (rising && above) score += 15; if (!rising && !above) score -= 15;
+   if (above && rising) score += 5; if (!above && !rising) score -= 5;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.7);
+   return o;
+}
+// 🕯 Pattern — engulfing / hammer / star at range extremes (3-candle + 20-bar context)
+AgentOut AgentPattern(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 22, r) < 22) return o;
+   MqlRates c2 = r[0], c1 = r[1], c0 = r[2];
+   double b2 = MathAbs(c2.close - c2.open), b1 = MathAbs(c1.close - c1.open), b0 = MathAbs(c0.close - c0.open);
+   double up2 = c2.high - MathMax(c2.open, c2.close), lo2 = MathMin(c2.open, c2.close) - c2.low;
+   bool bull2 = c2.close > c2.open, bear2 = c2.close < c2.open;
+   bool bull1 = c1.close > c1.open, bear1 = c1.close < c1.open;
+   bool bull0 = c0.close > c0.open, bear0 = c0.close < c0.open;
+   double hi = -1e18, lo = 1e18; for (int i = 1; i <= 19; i++) { hi = MathMax(hi, r[i].high); lo = MathMin(lo, r[i].low); }
+   double posR = (hi > lo) ? (c2.close - lo) / (hi - lo) : 0.5;
+   bool atTop = posR >= 0.75, atBot = posR <= 0.25;
+   double score = 0;
+   if (bear1 && bull2 && c2.open <= c1.close && c2.close >= c1.open && b2 > b1 * 1.5) score = atBot ? 28 : 8;
+   else if (bull1 && bear2 && c2.open >= c1.close && c2.close <= c1.open && b2 > b1 * 1.5) score = atTop ? -28 : -8;
+   else if (lo2 > b2 * 3 && up2 < b2 * 0.3 && atBot) score = 25;
+   else if (up2 > b2 * 3 && lo2 < b2 * 0.3 && atTop) score = -25;
+   else if (bear0 && b1 < b0 * 0.4 && bull2 && c2.close > (c0.open + c0.close) / 2) score = atBot ? 32 : 15;
+   else if (bull0 && b1 < b0 * 0.4 && bear2 && c2.close < (c0.open + c0.close) / 2) score = atTop ? -32 : -15;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score));
+   return o;
+}
+// 📐 Fibonacci — nearest retracement of 50-bar swing, aligned with EMA trend
+AgentOut AgentFib(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   MqlRates r[]; ArraySetAsSeries(r, true);
+   if (CopyRates(sym, tf, 1, 50, r) < 20) return o;
+   double hi = -1e18, lo = 1e18; int n = ArraySize(r);
+   for (int i = 0; i < n; i++) { hi = MathMax(hi, r[i].high); lo = MathMin(lo, r[i].low); }
+   double range = hi - lo; if (range <= 0) return o;
+   double last = r[0].close, ratios[5] = {0.236, 0.382, 0.5, 0.618, 0.786};
+   int near = 0; double nd = 1e18;
+   for (int i = 0; i < 5; i++) { double lvl = hi - ratios[i] * range, dist = MathAbs(last - lvl); if (dist < nd) { nd = dist; near = i; } }
+   double nearPct = nd / range * 100.0;
+   int trend = 0;
+   int h20 = iMA(sym, tf, 20, 0, MODE_EMA, PRICE_CLOSE), h50 = iMA(sym, tf, 50, 0, MODE_EMA, PRICE_CLOSE);
+   if (h20 != INVALID_HANDLE && h50 != INVALID_HANDLE) {
+      double e20[], e50[]; ArraySetAsSeries(e20, true); ArraySetAsSeries(e50, true);
+      if (CopyBuffer(h20, 0, 1, 1, e20) == 1 && CopyBuffer(h50, 0, 1, 1, e50) == 1) trend = e20[0] > e50[0] ? 1 : e20[0] < e50[0] ? -1 : 0;
+      IndicatorRelease(h20); IndicatorRelease(h50);
+   }
+   double ratio = ratios[near]; bool golden = (near == 3), half = (near == 2), shallow = (near <= 1);
+   double score = 0;
+   if (trend > 0 && ratio >= 0.5) score += golden ? 40 : half ? 25 : 15;
+   if (trend < 0 && ratio <= 0.5) score -= golden ? 40 : half ? 25 : (shallow ? 15 : 0);
+   if (nearPct > 2) score *= 0.5;
+   o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.5);
+   return o;
+}
+// 🌊 Elliott (proxy) — impulse = EMA trend aligned with EMA20 slope over 3 bars
+AgentOut AgentElliott(string sym, ENUM_TIMEFRAMES tf) {
+   AgentOut o; o.dir = 0; o.conf = 30;
+   int h20 = iMA(sym, tf, 20, 0, MODE_EMA, PRICE_CLOSE), h50 = iMA(sym, tf, 50, 0, MODE_EMA, PRICE_CLOSE);
+   if (h20 == INVALID_HANDLE || h50 == INVALID_HANDLE) return o;
+   double e20[], e50[]; ArraySetAsSeries(e20, true); ArraySetAsSeries(e50, true);
+   bool ok = (CopyBuffer(h20, 0, 1, 3, e20) == 3 && CopyBuffer(h50, 0, 1, 3, e50) == 3);
+   IndicatorRelease(h20); IndicatorRelease(h50);
+   if (!ok) return o;
+   int trend = e20[0] > e50[0] ? 1 : e20[0] < e50[0] ? -1 : 0;
+   bool slopeUp = (e20[0] > e20[1] && e20[1] > e20[2]);
+   bool slopeDn = (e20[0] < e20[1] && e20[1] < e20[2]);
+   double score = 0;
+   if (trend > 0 && slopeUp) score += 35;
+   if (trend < 0 && slopeDn) score -= 35;
+   o.dir  = score >= 25 ? 1 : score <= -25 ? -1 : 0;
+   o.conf = MathMin(90.0, 55 + MathAbs(score) * 0.6);
+   return o;
+}
+
+// Dispatch an agent by key (all 18 web agents now ported — EA = same brain, real data)
 AgentOut AgentByKey(string key, string sym, ENUM_TIMEFRAMES tf, int idx) {
    if (key == "fvg")        return AgentFVG(sym, tf);
    if (key == "dxy")        return AgentDXY(sym, tf);
@@ -1725,6 +1841,11 @@ AgentOut AgentByKey(string key, string sym, ENUM_TIMEFRAMES tf, int idx) {
    if (key == "sweep")      return AgentSweep(sym, tf);
    if (key == "orderblock") return AgentOrderBlock(sym, tf);
    if (key == "smc")        return AgentSMC(sym, tf);
+   if (key == "bollinger")  return AgentBollinger(sym, tf);
+   if (key == "macd")       return AgentMACD(sym, tf);
+   if (key == "pattern")    return AgentPattern(sym, tf);
+   if (key == "fib")        return AgentFib(sym, tf);
+   if (key == "elliott")    return AgentElliott(sym, tf);
    AgentOut o; o.dir = 0; o.conf = 0; return o;   // unknown key
 }
 
@@ -1740,7 +1861,7 @@ void GetComboKeys(string sym, string &keys[]) {
    // Defaults retuned to KB 459k winners (EA-supported agents only):
    if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="ichimoku"; } // UT-Bot+98 SMC+37 Ichi+15
    else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="rsi";       keys[2]="sweep";    } // UT-Bot+62 RSI+25
-   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="fvg";   keys[1]="smc";       keys[2]="orderblock"; } // FVG+41 SMC+6 OB+5
+   else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="elliott"; keys[1]="fvg";     keys[2]="bollinger"; } // Elliott+43 FVG+41 Bollinger+18 (web winners, now in EA)
    else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="rsi";      }
 }
 
