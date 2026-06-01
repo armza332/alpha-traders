@@ -383,10 +383,11 @@ void CheckSignal(string sym, int idx) {
    else                                         scanState[idx].tag = "SCAN";
 
    // ─── Trade execution (only if cooldown + position allow) ───
-   // Phase 21.7: if OnlyWebSignals, the EA never opens its own trades —
-   // it waits for high-confidence signals from the web head-traders.
-   if (OnlyWebSignals) {
-      // dashboard label reflects the active signal mode (EA-local runs separately)
+   // Phase C.10: the 18-agent combo system (EvaluateLocalCombo) is the trader in
+   // EA/BOTH mode, and web signals drive WEB mode — so the LEGACY RSI+BB+Fib entry
+   // below must NOT also fire (it bypasses combos/pullback/winner-tuning). Keep it
+   // for the dashboard scan only; it never opens a trade now.
+   {
       scanState[idx].tag = (gSignalMode == 1) ? "EA-LOCAL" : (gSignalMode == 2) ? "EA+WEB" : "WEB-ONLY";
       return;
    }
