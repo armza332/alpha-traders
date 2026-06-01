@@ -3401,16 +3401,22 @@ const Company = {
     if (!pos.length) return null;
     const tag = emp.id.replace('emp_', '');
     const baseSym = (s) => (s || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 6);
-    // 1) exact agent-tag match from the EA comment (e.g. TWR-S-bt-R35 → 'bt')
-    for (const p of pos) {
-      const parts = (p.comment || '').split('-');
-      if (parts.length >= 3 && parts[2] && parts[2] === tag) return p;
-    }
-    // 2) symbol fallback only when this employee is the SOLE owner of that pair
-    //    (e.g. BTC → Satoshi); avoids mis-crediting forex pairs with 2 traders.
-    if (emp.sym && this.EMPLOYEES.filter(x => x.sym === emp.sym).length === 1) {
-      const mine = pos.find(p => baseSym(p.sym) === emp.sym);
-      if (mine) return mine;
+    const tagOf = (p) => { const a = (p.comment || '').split('-'); return a.length >= 3 ? a[2] : ''; };
+    // 1) exact agent-tag match from the EA comment (e.g. TWR-S-tr-R35 → Trent)
+    for (const p of pos) { if (tagOf(p) && tagOf(p) === tag) return p; }
+    // 2) symbol attribution (works for pairs with 2+ traders): a position tagged
+    //    to a specific peer belongs to that peer; an untagged one (EA-local /
+    //    pre-comment EA) is shown by the PRIMARY (first-listed) trader of the pair.
+    if (emp.sym) {
+      const peers = this.EMPLOYEES.filter(x => x.sym === emp.sym);
+      const isPrimary = peers.length && peers[0].id === emp.id;
+      for (const p of pos) {
+        if (baseSym(p.sym) !== emp.sym) continue;
+        const pt = tagOf(p);
+        const tagged = pt && peers.find(x => x.id.replace('emp_', '') === pt);
+        if (tagged) { if (tagged.id === emp.id) return p; continue; }  // owned by a tagged peer
+        if (isPrimary) return p;                                       // untagged → primary trader
+      }
     }
     return null;
   },
