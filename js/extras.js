@@ -1857,7 +1857,8 @@ const BotBridge = {
     } catch (e) { /* silent */ }
   },
 
-  // Inject trade into web KnowledgeBase as "live" with synthetic EA-strategy votes
+  // Inject a closed live trade into the web KnowledgeBase, crediting the agents
+  // that ACTUALLY fired it (the pair's EA combo) — see Phase D.2 notes below.
   learnFromTrade(t) {
     if (typeof AgentScores === 'undefined') return;
     if (!t.outcome || t.outcome === 'breakeven') return;
@@ -1865,19 +1866,36 @@ const BotBridge = {
     if (typeof Company !== 'undefined' && Company._attachOutcome) {
       try { Company._attachOutcome(t.sym, t.outcome, t.rMult, t.agent); } catch (e) {}
     }
-    // EA used RSI + BB + Fib confluence — all agreed on direction
+
     const sigDir = (t.side === 'buy') ? 'buy' : 'sell';
-    const votes = [
-      { agent: 'ea-rsi',       signal: sigDir },
-      { agent: 'ea-bollinger', signal: sigDir },
-      { agent: 'ea-fib',       signal: sigDir },
-    ];
-    // Classify regime crudely from BB position at entry
-    let regime = 'range';
-    const bbPos = parseFloat(t.bbPosAtEntry);
-    if (bbPos < 0.2 || bbPos > 0.8) regime = 'trend';
-    // Symbol short form (strip suffix m/c/z/r)
+    // Symbol short form (strip suffix m/c/z/r). Prefix MUST match backtest's
+    // (Gold/AUD/EUR, EUR as catch-all) so live + backtest land on the same KB rows.
     const symKey = (t.sym || '').replace(/[mczr]$/i, '').toUpperCase();
+    const prefix = symKey === 'XAUUSD' ? 'Gold' : symKey === 'AUDUSD' ? 'AUD' : 'EUR';
+
+    // Phase D.2 FIX: the old code hard-coded votes to ea-rsi/ea-bollinger/ea-fib —
+    // the LEGACY agents that no longer trade. Credit the REAL combo the EA ran for
+    // this pair instead. The EA only fires when its combo members agree on direction
+    // with none opposing, so every member is recorded as agreeing with the trade's
+    // side (same convention backtest uses). Names match KB rows: `${prefix}-${tech}`.
+    let votes = null;
+    if (typeof Company !== 'undefined' && Company._eaComboFor && Company._KEYMAP) {
+      const sel = Company._eaComboFor(symKey);
+      if (sel && sel.agents.length) {
+        votes = sel.agents.map(key => ({ agent: `${prefix}-${Company._KEYMAP[key] || key}`, signal: sigDir }));
+      }
+    }
+    if (!votes || !votes.length) votes = [{ agent: `${prefix}-EA`, signal: sigDir }];  // safety net
+
+    // Phase D.2 FIX: real regime from the live candles (same classifier backtest
+    // uses) instead of the crude trend/range guess — so live + backtest buckets align.
+    let regime = null;
+    try {
+      const c = (typeof TradingWarRoom !== 'undefined' && TradingWarRoom.market && TradingWarRoom.market.candles)
+              ? (TradingWarRoom.market.candles[t.sym] || TradingWarRoom.market.candles[symKey]) : null;
+      if (c) regime = AgentScores.classifyRegime(c);
+    } catch (e) {}
+
     AgentScores.recordTrade({
       votes,
       signal:  sigDir,
@@ -3720,21 +3738,30 @@ const Company = {
   // so a push never downgrades the EA — it only changes once an employee has
   // PROVEN (≥5 real trades) a better R.
   _DEFAULT_EMP: { XAUUSD: 'emp_bg', AUDUSD: 'emp_rv', EURUSD: 'emp_wv' },
+  // Single source of truth: which combo (and its agent kit) the EA runs for a
+  // pair = the best PROVEN employee's combo (≥5 matched trades), else the vetted
+  // default. Used by BOTH pushCombosToEA (sends it to the EA) and the live
+  // learning loop (credits the SAME agents in the KB) so they can never drift.
+  _eaComboFor(sym) {
+    const base = (sym || '').replace(/[mczr]$/i, '').toUpperCase();
+    const emps = (this.EMPLOYEES || []).filter(e => e.sym === base);
+    if (!emps.length) return null;
+    let best = null, bestR = -1e9;
+    emps.forEach(e => { const st = this._employeeStats(e.id); if (st.matched >= 5 && st.R > bestR) { bestR = st.R; best = e; } });
+    const proven = !!best;
+    if (!best) best = emps.find(e => e.id === this._DEFAULT_EMP[base]) || emps[0];  // keep vetted default
+    const combo = best && this.COMBOS[best.combo];
+    if (!combo || !combo.agents) return null;
+    return { key: best.combo, name: best.name, agents: combo.agents.slice(), proven };
+  },
   pushCombosToEA() {
     if (typeof BotBridge === 'undefined' || !BotBridge.sendCommand) return;
     const lines = [];
     ['XAUUSD', 'AUDUSD', 'EURUSD'].forEach(sym => {
-      const emps = this.EMPLOYEES.filter(e => e.sym === sym);
-      if (!emps.length) return;
-      // only let an employee win if it has enough proven trades (≥5 matched)
-      let best = null, bestR = -1e9;
-      emps.forEach(e => { const st = this._employeeStats(e.id); if (st.matched >= 5 && st.R > bestR) { bestR = st.R; best = e; } });
-      const proven = !!best;
-      if (!best) best = emps.find(e => e.id === this._DEFAULT_EMP[sym]) || emps[0];  // keep vetted default
-      const combo = this.COMBOS[best.combo];
-      if (!combo || !combo.agents) return;
-      BotBridge.sendCommand('combo_' + sym + '_' + combo.agents.join('.'), { silent: true });
-      lines.push(`${sym.replace('USD', '')}→${best.name}${proven ? '✓' : '(default)'}`);
+      const sel = this._eaComboFor(sym);
+      if (!sel) return;
+      BotBridge.sendCommand('combo_' + sym + '_' + sel.agents.join('.'), { silent: true });
+      lines.push(`${sym.replace('USD', '')}→${sel.name}${sel.proven ? '✓' : '(default)'}`);
     });
     if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')} (✓=พิสูจน์แล้ว ≥5 ไม้)`);
   },
