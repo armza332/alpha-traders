@@ -98,6 +98,9 @@ input double  LocalMinConf       = 70;            // EA-local: min combined conf
 input bool    EAUseFirmSniper    = false;         // 🎯 Phase C.2: EA-local ใช้ FirmSniper (hard-filter 4 ชั้น) แทน combo เดิมทุกคู่
 input double  DxyDeadband        = 0.05;          // 🎯 FirmSniper: |USD trend| ต่ำกว่านี้ = flat (ผ่านทั้ง buy/sell)
 input bool    FirmSniperUseNews  = true;          // 🎯 Phase C.3: ใช้ News filter จาก bridge (ครบ 5 ชั้น) — งดเทรดช่วงข่าวแรง
+input bool    UsePullbackEntry   = true;          // 🎯 Phase C.9: รอ pullback ก่อนเข้า — ไม่ sell ติดก้น/ไม่ buy ติดยอด (entry สวยขึ้น)
+input int     PullbackBars       = 8;             // มองย้อนกี่แท่งหา range สำหรับ pullback
+input double  PullbackZone       = 0.30;          // โซนปลาย: SELL ต้องอยู่เหนือ 30% ล่าง · BUY ต้องต่ำกว่า 30% บน
 
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
@@ -1898,6 +1901,22 @@ void EvaluateLocalCombo(string sym, int idx) {
    if (conf < LocalMinConf) return;
 
    bool isBuy = (net > 0);
+
+   // Phase C.9: pullback entry — don't chase the extreme. In a downtrend wait for a
+   // bounce UP before selling (price in upper part of recent range); in an uptrend
+   // wait for a dip before buying. Skips (no cooldown set) so it re-checks next bar.
+   if (UsePullbackEntry) {
+      MqlRates pr[]; ArraySetAsSeries(pr, true);
+      int pb = MathMax(3, PullbackBars);
+      if (CopyRates(sym, effTF, 1, pb, pr) >= pb) {
+         double phi = -1e18, plo = 1e18;
+         for (int i = 0; i < pb; i++) { phi = MathMax(phi, pr[i].high); plo = MathMin(plo, pr[i].low); }
+         double pos = (phi > plo) ? (pr[0].close - plo) / (phi - plo) : 0.5;
+         if (isBuy && pos > 1.0 - PullbackZone) { PrintFormat("⏳ %s BUY รอ pullback — ติดยอด (pos %.2f)", sym, pos); return; }
+         if (!isBuy && pos < PullbackZone)      { PrintFormat("⏳ %s SELL รอเด้ง — ติดก้น (pos %.2f)", sym, pos); return; }
+      }
+   }
+
    double atrArr[], rsiArr[];
    ArraySetAsSeries(atrArr, true); ArraySetAsSeries(rsiArr, true);
    if (CopyBuffer(atrHandle[idx], 0, 0, 1, atrArr) != 1) return;
