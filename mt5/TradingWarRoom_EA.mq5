@@ -2,19 +2,23 @@
 //|              TradingWarRoom_EA.mq5                                |
 //|              AI-derived Strategy for Cent Accounts ($30+)         |
 //|                                                                   |
-//|   Strategy:    RSI + Bollinger + Fibonacci confluence            |
-//|   Symbols:     AUDUSDc + EURUSDc (proven 70%+ WR in KB)         |
-//|   Timeframe:   H1 (Swing)                                         |
-//|   Risk:        1.5% per trade, R:R 1:1.6                         |
-//|   Lot:         Auto-calculated from balance + risk + SL          |
+//|   Strategy:    18-agent KB combo per pair (web brain on real MT5) |
+//|   Symbols:     AUD + EUR + XAU(gold) + BTC (per-pair combos)      |
+//|   Risk:        per-trade % + per-trade cap + portfolio guard      |
+//|   Phase D:     daily-loss/streak halt · spread guard · session TZ |
+//|                runner trail-from-breakeven · KB attribution fix   |
 //+------------------------------------------------------------------+
-#property copyright "Trading War Room v1.0"
-#property version   "1.00"
+#property copyright "Trading War Room"
+#property version   "1.40"
 #property strict
-#property description "AI-validated swing trading on Cent account"
+#property description "TWR v1.40 (Phase D.4) — KB combos + risk guards + smart runner trail"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
+
+// Build tag — shown in the Experts log on init + on the dashboard so you can
+// verify at a glance which build MT5 actually loaded. Bump on every EA change.
+#define EA_VERSION "v1.40 · Phase D.4"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -238,7 +242,7 @@ int OnInit() {
       lastSignalTime[i] = 0;
    }
 
-   PrintFormat("✅ Trading War Room EA initialized [%s MODE]", ScalpMode ? "⚡ SCALP M1" : "🌊 SWING");
+   PrintFormat("✅ Trading War Room EA initialized [%s MODE]  🏷 %s", ScalpMode ? "⚡ SCALP M1" : "🌊 SWING", EA_VERSION);
    string symStr = symbols[0];
    for (int i = 1; i < nActiveSyms; i++) symStr += " + " + symbols[i];
    PrintFormat("   Trading %d symbols: %s", nActiveSyms, symStr);
@@ -921,6 +925,7 @@ void UpdateDashboard() {
              eaPaused ? "▼ TRADING WAR ROOM — PAUSED ▼" : "▲ TRADING WAR ROOM — BOSS MODE ▲",
              eaPaused ? C'255,140,0' : C'0,255,200',
              10, "Consolas Bold");
+   DashLabel("VER", DASH_X+DASH_W-118, y+10, EA_VERSION, C'120,200,160', 7);
    DashLabel("CLOCK", DASH_X+12, y+28,
              TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES) + "  " + (IsLondonNYSession() ? "[LDN/NY]" : "[ASIA]"),
              IsLondonNYSession() ? C'255,230,0' : C'128,128,128',
