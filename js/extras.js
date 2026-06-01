@@ -3433,19 +3433,30 @@ const Company = {
   // Attach a closed-trade outcome to the most recent unmatched signal for that symbol
   _attachOutcome(sym, outcome, rMult, agent) {
     const base = (sym || '').replace(/[mzcr.]+$/i, '').replace('USD', '');
-    // Phase 26: exact attribution — if the EA reported which agent fired it,
-    // only credit THAT employee's signal (agent tag e.g. 'cl' → 'emp_cl').
-    const wantEmp = (agent && agent !== 'ea' && agent !== 'web') ? ('emp_' + agent) : null;
+    // exact attribution if the EA reported a known employee tag (e.g. 'tr' → emp_tr)
+    const exactEmp = (agent && this.EMPLOYEES.some(e => e.id === 'emp_' + agent)) ? ('emp_' + agent) : null;
     const a = this._loadAudit();
+    // 1) attach to a pending web-signal (exact employee if known, else any on this pair)
     for (let i = a.length - 1; i >= 0; i--) {
       const e = a[i];
       if (e.outcome) continue;
       const eb = (e.sym || '').replace(/[mzcr.]+$/i, '').replace('USD', '');
       if (eb !== base) continue;
-      if (wantEmp && e.empId !== wantEmp) continue;
+      if (exactEmp && e.empId !== exactEmp) continue;
       if ((Date.now() - e.ts) < 4 * 3600 * 1000) {
         e.outcome = outcome; e.rMult = rMult; this._saveAudit(a); return e.empId;
       }
+    }
+    // 2) no pending signal (EA-local trade tagged 'local'/'ea') → log it under the
+    //    pair's owner so the leaderboard + office reflect REAL EA trades, not just
+    //    web proposals. exact tag wins; else the pair's primary (first) trader.
+    const symFull = { XAU: 'XAUUSD', AUD: 'AUDUSD', EUR: 'EURUSD', BTC: 'BTCUSD' }[base];
+    let ownerId = exactEmp;
+    if (!ownerId && symFull) { const peers = this.EMPLOYEES.filter(e => e.sym === symFull); if (peers.length) ownerId = peers[0].id; }
+    if (ownerId) {
+      a.push({ ts: Date.now(), empId: ownerId, sym, signal: '-', grade: 'EA', conf: 0, outcome, rMult });
+      this._saveAudit(a.slice(-500));
+      return ownerId;
     }
     return null;
   },
