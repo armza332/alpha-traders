@@ -71,6 +71,7 @@ input double  PartialPct         = 50;            // % of position to close (the
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
 input double  MaxPerTradeRiskPct = 4.0;           // 🛡 Phase C.1: max risk % of equity on ONE trade (4% = gold ~$100+ trades some setups; blocks BTC until bigger)
 input double  CryptoMinSLPct     = 0.6;           // 🪙 Phase C.5: min SL for BTC/ETH = % of price (ATR is too tight for crypto; 0 = off)
+input double  XauMinSLPct        = 0.15;          // 🥇 Phase C.8: min SL for gold (XAU) = % of price (~$7 on $4500; stops gold noise-stop; 0 = off)
 
 input group "=== SYSTEM ==="
 input int     MagicNumber        = 992511;
@@ -427,17 +428,20 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
       slDist = minDist;
    }
 
-   // Phase C.5: crypto SL floor — ATR-based SL is far too tight vs BTC's price
-   // scale (gets stopped by noise). Widen to a % of price. The larger risk also
-   // makes the per-trade cap gate BTC on small accounts (won't trade until equity
-   // is big enough — exactly the behavior we want).
-   if (CryptoMinSLPct > 0) {
+   // Phase C.5/C.8: %-of-price SL floor for high-value instruments — ATR-based SL
+   // is far too tight vs their price scale (gold/BTC get noise-stopped). Widen to a
+   // % of price. The larger risk also makes the per-trade cap gate them on small
+   // accounts (won't trade until equity is big enough — exactly what we want).
+   {
       string _cb = sym; StringToUpper(_cb);
-      if (StringFind(_cb, "BTC") >= 0 || StringFind(_cb, "ETH") >= 0) {
-         double cryptoMin = entry * CryptoMinSLPct / 100.0;
-         if (slDist < cryptoMin) {
-            PrintFormat("🪙 %s crypto SL floor → %.2f%% of price (%.2f)", sym, CryptoMinSLPct, cryptoMin);
-            slDist = cryptoMin;
+      double minPct = 0;
+      if (StringFind(_cb, "BTC") >= 0 || StringFind(_cb, "ETH") >= 0) minPct = CryptoMinSLPct;
+      else if (StringFind(_cb, "XAU") >= 0 || StringFind(_cb, "GOLD") >= 0) minPct = XauMinSLPct;
+      if (minPct > 0) {
+         double floorDist = entry * minPct / 100.0;
+         if (slDist < floorDist) {
+            PrintFormat("🛡 %s SL floor → %.2f%% of price (%.2f, was %.2f) — avoid noise stop", sym, minPct, floorDist, slDist);
+            slDist = floorDist;
          }
       }
    }
