@@ -92,7 +92,7 @@ input int     MaxSignalAgeSec    = 90;            // 🕐 Phase 26: drop web AI 
 
 input group "=== SIGNAL MODE (Phase A) ==="
 enum ENUM_SIG_MODE { SIG_WEB=0, SIG_EA=1, SIG_BOTH=2 };
-input ENUM_SIG_MODE SignalMode   = SIG_WEB;       // 🔀 WEB=สัญญาณจากเว็บ · EA=EA คิดเอง · BOTH=ทั้งคู่ (เปลี่ยนจากเว็บได้)
+input ENUM_SIG_MODE SignalMode   = SIG_EA;        // 🔀 WEB=สัญญาณเว็บ(candle จำลอง-เสี่ยงสวนจริง) · EA=คิดจากราคาจริง MT5 (แนะนำ) · BOTH=ทั้งคู่
 input double  LocalMinConf       = 70;            // EA-local: min combined conf (UT-Bot + Divergence) to fire
 input bool    EAUseFirmSniper    = false;         // 🎯 Phase C.2: EA-local ใช้ FirmSniper (hard-filter 4 ชั้น) แทน combo เดิมทุกคู่
 input double  DxyDeadband        = 0.05;          // 🎯 FirmSniper: |USD trend| ต่ำกว่านี้ = flat (ผ่านทั้ง buy/sell)
