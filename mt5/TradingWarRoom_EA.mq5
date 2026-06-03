@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.42 · Phase D.9"
+#define EA_VERSION "v1.43 · Phase D.9b"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -1342,53 +1342,59 @@ void PollWebCommands() {
    if (TimeCurrent() - lastCmdPoll < CommandPollSec) return;
    lastCmdPoll = TimeCurrent();
 
-   string url = WebhookURL + "?action=command&secret=" + WebhookSecret + "&since=" + IntegerToString(lastCmdId);
-   char post[]; char result[]; string headers;
-   ResetLastError();
-   int code = WebRequest("GET", url, "", 5000, post, result, headers);
-   if (code != 200) return;
+   // Phase D.9 fix: DRAIN the whole queue this poll (the bridge serves one command
+   // per request, oldest-first). Looping up to 12 commands stops a backlog of
+   // combo pushes from starving newer commands (preset/mode). Exits early when no
+   // newer command remains.
+   for (int iter = 0; iter < 12; iter++) {
+      string url = WebhookURL + "?action=command&secret=" + WebhookSecret + "&since=" + IntegerToString(lastCmdId);
+      char post[]; char result[]; string headers;
+      ResetLastError();
+      int code = WebRequest("GET", url, "", 5000, post, result, headers);
+      if (code != 200) return;
 
-   string body = CharArrayToString(result, 0, -1, CP_UTF8);
-   if (StringLen(body) < 10) return;
+      string body = CharArrayToString(result, 0, -1, CP_UTF8);
+      if (StringLen(body) < 10) return;
 
-   // Phase C.3: parse news risk on EVERY poll (even when no new command) — bridge
-   // attaches "news":{"risk":"HIGH","block":true,...} computed server-side.
-   int bp = StringFind(body, "\"block\":");
-   if (bp >= 0) {
-      string bv = StringSubstr(body, bp + 8, 6);
-      gNewsBlocked = (StringFind(bv, "true") >= 0);
-      gNewsTime    = TimeCurrent();
-      int rp = StringFind(body, "\"risk\":\"");
-      if (rp >= 0) { int rs = rp + 8, re = StringFind(body, "\"", rs); if (re > rs) gNewsRisk = StringSubstr(body, rs, re - rs); }
-   }
-
-   // Parse simple JSON: {"ok":true,"cmd":"close_all","id":5}
-   // Cheap string-based parser (no JSON lib in MQL5 core)
-   int idPos = StringFind(body, "\"id\":");
-   if (idPos < 0) return;
-   int idVal = (int)StringToInteger(StringSubstr(body, idPos + 5, 10));
-   if (idVal <= lastCmdId) return;     // already processed
-
-   int cmdPos = StringFind(body, "\"cmd\":\"");
-   if (cmdPos < 0) return;
-   int cmdStart = cmdPos + 7;
-   int cmdEnd = StringFind(body, "\"", cmdStart);
-   if (cmdEnd < 0) return;
-   string cmd = StringSubstr(body, cmdStart, cmdEnd - cmdStart);
-
-   // Phase 26: command age (anti-stale for AI signals). ts = web epoch ms (UTC).
-   int ageSec = 0;
-   int tsPos = StringFind(body, "\"ts\":");
-   if (tsPos >= 0) {
-      long tsMs = (long)StringToInteger(StringSubstr(body, tsPos + 5, 15));
-      if (tsMs > 0) {
-         long ageMs = (long)TimeGMT() * 1000 - tsMs;
-         if (ageMs > 0) ageSec = (int)(ageMs / 1000);
+      // Phase C.3: parse news risk on EVERY poll (even when no new command) — bridge
+      // attaches "news":{"risk":"HIGH","block":true,...} computed server-side.
+      int bp = StringFind(body, "\"block\":");
+      if (bp >= 0) {
+         string bv = StringSubstr(body, bp + 8, 6);
+         gNewsBlocked = (StringFind(bv, "true") >= 0);
+         gNewsTime    = TimeCurrent();
+         int rp = StringFind(body, "\"risk\":\"");
+         if (rp >= 0) { int rs = rp + 8, re = StringFind(body, "\"", rs); if (re > rs) gNewsRisk = StringSubstr(body, rs, re - rs); }
       }
-   }
 
-   ExecuteCommand(cmd, ageSec);
-   lastCmdId = idVal;
+      // Parse simple JSON: {"ok":true,"cmd":"close_all","id":5}
+      // Cheap string-based parser (no JSON lib in MQL5 core)
+      int idPos = StringFind(body, "\"id\":");
+      if (idPos < 0) return;
+      int idVal = (int)StringToInteger(StringSubstr(body, idPos + 5, 10));
+      if (idVal <= lastCmdId) return;     // no newer command — queue drained
+
+      int cmdPos = StringFind(body, "\"cmd\":\"");
+      if (cmdPos < 0) return;
+      int cmdStart = cmdPos + 7;
+      int cmdEnd = StringFind(body, "\"", cmdStart);
+      if (cmdEnd < 0) return;
+      string cmd = StringSubstr(body, cmdStart, cmdEnd - cmdStart);
+
+      // Phase 26: command age (anti-stale for AI signals). ts = web epoch ms (UTC).
+      int ageSec = 0;
+      int tsPos = StringFind(body, "\"ts\":");
+      if (tsPos >= 0) {
+         long tsMs = (long)StringToInteger(StringSubstr(body, tsPos + 5, 15));
+         if (tsMs > 0) {
+            long ageMs = (long)TimeGMT() * 1000 - tsMs;
+            if (ageMs > 0) ageSec = (int)(ageMs / 1000);
+         }
+      }
+
+      ExecuteCommand(cmd, ageSec);
+      lastCmdId = idVal;
+   }
 }
 
 void ExecuteCommand(string cmd, int ageSec) {
