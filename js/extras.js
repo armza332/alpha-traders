@@ -1762,10 +1762,29 @@ const BotBridge = {
       if (data.ok && data.status) {
         this.lastStatus = data.status;
         this.render();
+        this._reconcilePreset(data.status);   // Phase D.9: self-heal preset to user's pick
       }
     } catch (e) { /* silent */ }
     // Phase 12.6: also poll live trades for AI training
     this.syncLiveTrades(url);
+  },
+
+  // Phase D.9: if the EA's running preset doesn't match the user's chosen one
+  // (e.g. the EA was reloaded and skipped the queued command), re-send it — throttled
+  // to once / 30s so it never floods the one-command-per-poll queue. Stops once synced.
+  _presetResyncAt: 0,
+  _reconcilePreset(status) {
+    try {
+      if (typeof Settings === 'undefined') return;
+      const want = Settings.get('riskPreset', 'auto');
+      const have = (status && status.preset) || 'auto';
+      if (want === have) return;                       // already in sync — nothing to do
+      const now = Date.now();
+      if (now - this._presetResyncAt < 30000) return;  // throttle
+      this._presetResyncAt = now;
+      this.sendCommand('preset_' + want, { silent: true });
+      if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Preset', `🔁 ส่งซ้ำ preset → ${want.toUpperCase()} (EA ยังเป็น ${have})`);
+    } catch (e) { /* silent */ }
   },
 
   // Phase 12.6: pull recently closed trades → feed into KB
@@ -3764,7 +3783,7 @@ const Company = {
     const soloOn = (solo === 'emp_fs');
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;margin-bottom:6px;border:1px dashed #2a3550;border-radius:5px;flex-wrap:wrap">
       <span style="font-size:7px;color:#9aa">โหมดสัญญาณ:</span>${btns}
-      <button onclick="Company.pushCombosToEA()" title="ส่ง combo คนเก่งสุดต่อคู่ไป EA (Phase C)" class="btn btn-secondary" style="font-size:8px;padding:3px 8px;border-color:var(--purple);color:#a78bfa">🧬 ส่ง combo → EA</button>
+      <button onclick="Company.pushCombosToEA({force:true})" title="ส่ง combo คนเก่งสุดต่อคู่ไป EA (Phase C)" class="btn btn-secondary" style="font-size:8px;padding:3px 8px;border-color:var(--purple);color:#a78bfa">🧬 ส่ง combo → EA</button>
       <button onclick="Company.setSoloEmployee('emp_fs')" title="ให้ FirmSniper เป็นคนเดียวที่ยิงสัญญาณ (ปิดพนักงานที่เหลือ) — วินัยสุด เหมาะสอบกองทุน" class="btn"
         style="font-size:8px;padding:3px 9px;border:1px solid ${soloOn?'#36e08f':'var(--border)'};background:${soloOn?'rgba(54,224,143,.15)':'transparent'};color:${soloOn?'#36e08f':'#9aa'};font-weight:${soloOn?'bold':'normal'}">🎯 FirmSniper เดี่ยว${soloOn?' ●':''}</button>
       <span style="font-size:6px;color:#778;margin-left:auto">${soloOn?'🎯 เฉพาะ FirmSniper ยิง — คนอื่นหยุด':'EA mode = EA คิดเอง · 🧬 = อัปเดตสูตรให้ EA'}</span>
@@ -3823,16 +3842,23 @@ const Company = {
     if (!combo || !combo.agents) return null;
     return { key: best.combo, name: best.name, empId: best.id, agents: combo.agents.slice(), proven };
   },
-  pushCombosToEA() {
+  pushCombosToEA(opts = {}) {
     if (typeof BotBridge === 'undefined' || !BotBridge.sendCommand) return;
+    if (!this._lastPushedCombos) this._lastPushedCombos = {};
     const lines = [];
     ['XAUUSD', 'AUDUSD', 'EURUSD'].forEach(sym => {
       const sel = this._eaComboFor(sym);
       if (!sel) return;
-      BotBridge.sendCommand('combo_' + sym + '_' + sel.agents.join('.'), { silent: true });
+      const sig = sel.agents.join('.');
+      // Dedupe: only queue a combo command when it actually CHANGED. The EA drains
+      // one command per ~15s poll, so re-sending identical combos every coach tick
+      // floods the queue and starves other commands (preset/mode). (Fix 2026-06-03)
+      if (!opts.force && this._lastPushedCombos[sym] === sig) return;
+      this._lastPushedCombos[sym] = sig;
+      BotBridge.sendCommand('combo_' + sym + '_' + sig, { silent: true });
       lines.push(`${sym.replace('USD', '')}→${sel.name}${sel.proven ? '✓' : '(default)'}`);
     });
-    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')} (✓=พิสูจน์แล้ว ≥5 ไม้)`);
+    if (lines.length && typeof UI !== 'undefined') UI.addLog?.('CMD', 'Commander', `🧬 ส่ง combo รายคู่ไป EA: ${lines.join(' · ')} (✓=พิสูจน์แล้ว ≥5 ไม้)`);
   },
   setSignalMode(m) {
     if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('mode_' + m, { silent: true });
