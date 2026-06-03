@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.41 · Phase D.8"
+#define EA_VERSION "v1.42 · Phase D.9"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -156,15 +156,41 @@ int           tradesToday_W = 0, tradesToday_L = 0;
 double        pnlToday      = 0;
 int           gConsecLosses = 0;     // Phase D: trailing consecutive losing closes today
 bool          gDailyHalt    = false; // Phase D: daily-loss / losing-streak halt active
+int           gPreset       = 0;     // Phase D.9: 0=AUTO(ตาม ScalpMode input) · 1=LOW · 2=MID · 3=HIGH (web override)
 
 // Phase 12.7: Effective strategy params (swap when ScalpMode toggles)
 ENUM_TIMEFRAMES effTF;
 double          effRSIOver, effRSIUnder, effSLMult, effRR;
 int             effCooldownMin, effMaxPos;
 double          effRisk, effMaxPerTrade, effPullbackZone;   // Phase D.8: risk auto-adjusts with mode
+double          effMinConf;                                 // Phase D.9: entry-quality gate per preset
+
+// Phase D.9: short name for the active risk preset (web can override the input mode).
+string PresetName() {
+   if (gPreset == 1) return "🟢LOW";
+   if (gPreset == 2) return "🟡MID";
+   if (gPreset == 3) return "🔴HIGH";
+   return ScalpMode ? "⚡SCALP" : "🌊SWING";
+}
 
 void ApplyMode() {
-   if (ScalpMode) {
+   // Phase D.9: web risk presets (gPreset 1/2/3) override the input mode.
+   // KEY IDEA: "ไม้ถี่" comes from a SHORTER timeframe + shorter cooldown, NOT from
+   // lowering the entry-quality bar. effMinConf stays high so HIGH still only fires
+   // strong setups (ถี่แต่คัด ไม่ใช่ยิงมั่ว).
+   if (gPreset == 1) {            // LOW — เสี่ยงน้อย ไม้น้อย (H1, คัดสุด)
+      effTF=PERIOD_H1;  effRSIUnder=RSIOversold;      effRSIOver=RSIOverbought;
+      effSLMult=SLAtrMult;        effRR=1.8;  effCooldownMin=60; effMaxPos=1;
+      effRisk=1.0; effMaxPerTrade=3.0; effPullbackZone=0.20; effMinConf=78;
+   } else if (gPreset == 2) {     // MID — เสี่ยงกลาง ไม้ปานกลาง (M15)
+      effTF=PERIOD_M15; effRSIUnder=RSIOversold;      effRSIOver=RSIOverbought;
+      effSLMult=SLAtrMult;        effRR=1.6;  effCooldownMin=30; effMaxPos=2;
+      effRisk=1.5; effMaxPerTrade=4.0; effPullbackZone=0.15; effMinConf=72;
+   } else if (gPreset == 3) {     // HIGH — เสี่ยงมาก ไม้เยอะ/ถี่ (M5, ยังคัด conf สูง)
+      effTF=PERIOD_M5;  effRSIUnder=ScalpRSIOversold; effRSIOver=ScalpRSIOverbought;
+      effSLMult=ScalpSLMult;      effRR=1.4;  effCooldownMin=10; effMaxPos=2;
+      effRisk=2.0; effMaxPerTrade=5.0; effPullbackZone=0.12; effMinConf=70;
+   } else if (ScalpMode) {        // AUTO + ScalpMode input
       effTF           = ScalpTF;
       effRSIUnder     = ScalpRSIOversold;
       effRSIOver      = ScalpRSIOverbought;
@@ -175,7 +201,8 @@ void ApplyMode() {
       effRisk         = ScalpRiskPercent;     // Phase D.8: scalp = ถี่ → เสี่ยง/ไม้ น้อยลง
       effMaxPerTrade  = ScalpMaxPerTradePct;  // Phase D.8: เพดาน/ไม้ เข้มขึ้น
       effPullbackZone = ScalpPullbackZone;    // Phase D.8: pullback แคบ → เข้าไว
-   } else {
+      effMinConf      = LocalMinConf;
+   } else {                       // AUTO + SWING input
       effTF           = Timeframe;
       effRSIUnder     = RSIOversold;
       effRSIOver      = RSIOverbought;
@@ -186,7 +213,23 @@ void ApplyMode() {
       effRisk         = RiskPercent;          // Phase D.8: swing = เสี่ยง/ไม้ มาตรฐาน
       effMaxPerTrade  = MaxPerTradeRiskPct;
       effPullbackZone = PullbackZone;
+      effMinConf      = LocalMinConf;
    }
+}
+
+// Phase D.9: re-create RSI/BB/ATR handles after a runtime timeframe change (preset switch).
+void RebuildIndicators() {
+   for (int i = 0; i < nActiveSyms; i++) {
+      if (rsiHandle[i] != INVALID_HANDLE) IndicatorRelease(rsiHandle[i]);
+      if (bbHandle[i]  != INVALID_HANDLE) IndicatorRelease(bbHandle[i]);
+      if (atrHandle[i] != INVALID_HANDLE) IndicatorRelease(atrHandle[i]);
+      rsiHandle[i] = iRSI(symbols[i], effTF, RSIPeriod, PRICE_CLOSE);
+      bbHandle[i]  = iBands(symbols[i], effTF, BBPeriod, 0, BBDeviation, PRICE_CLOSE);
+      atrHandle[i] = iATR(symbols[i], effTF, ATRPeriod);
+      lastSignalTime[i] = 0;   // fresh cooldown on the new timeframe
+   }
+   PrintFormat("🔧 Indicators rebuilt @ TF %s | Risk %.1f%% | conf≥%.0f | Pullback %.2f",
+               EnumToString(effTF), effRisk, effMinConf, effPullbackZone);
 }
 
 // Phase 12.6: Live training — entry context per open ticket
@@ -256,8 +299,8 @@ int OnInit() {
    string symStr = symbols[0];
    for (int i = 1; i < nActiveSyms; i++) symStr += " + " + symbols[i];
    PrintFormat("   Trading %d symbols: %s", nActiveSyms, symStr);
-   PrintFormat("   Timeframe: %s | Risk: %.1f%%/ไม้ | เพดาน/ไม้ %.1f%% | R:R 1:%.1f | Pullback %.2f | Cooldown %dmin",
-               EnumToString(effTF), effRisk, effMaxPerTrade, effRR, effPullbackZone, effCooldownMin);
+   PrintFormat("   Preset %s | TF %s | Risk %.1f%%/ไม้ | เพดาน/ไม้ %.1f%% | R:R 1:%.1f | conf≥%.0f | Pullback %.2f | Cooldown %dmin",
+               PresetName(), EnumToString(effTF), effRisk, effMaxPerTrade, effRR, effMinConf, effPullbackZone, effCooldownMin);
    PrintFormat("   Account: $%.2f balance, %.2f equity",
                AccountInfoDouble(ACCOUNT_BALANCE),
                AccountInfoDouble(ACCOUNT_EQUITY));
@@ -1075,7 +1118,7 @@ void UpdateDashboard() {
                  : C'160,160,160';
    DashLabel("SYS_LINE2", DASH_X+16, y+38,
              StringFormat("%s  Risk %.1f%%  Port %.1f%%/%.0f%%  R:R 1:%.1f",
-                          ScalpMode ? "⚡SCALP" : "🌊SWING",
+                          PresetName(),
                           effRisk, portRiskNow, MaxPortfolioRiskPct, effRR),
              portClr, 7);
 
@@ -1169,6 +1212,8 @@ void PushToWeb() {
       "\"symEnabled\":%s,"
       "\"portfolioRisk\":%.2f,\"maxPortfolioRisk\":%.1f,"
       "\"mode\":\"%s\","
+      "\"preset\":\"%s\","
+      "\"effRisk\":%.1f,\"effRR\":%.1f,\"effConf\":%.0f,"
       "\"signalMode\":\"%s\","
       "\"paused\":%s,"
       "\"prices\":%s,"
@@ -1184,6 +1229,8 @@ void PushToWeb() {
       enabledJson,
       PortfolioRiskPct(), MaxPortfolioRiskPct,
       (ScalpMode ? "scalp" : "swing"),
+      (gPreset==1?"low":gPreset==2?"mid":gPreset==3?"high":"auto"),
+      effRisk, effRR, effMinConf,
       (gSignalMode == 1 ? "ea" : gSignalMode == 2 ? "both" : "web"),
       (eaPaused ? "true" : "false"),
       pxJson,
@@ -1364,6 +1411,11 @@ void ExecuteCommand(string cmd, int ageSec) {
       Print("🔄 REMOTE: Today stats reset");
    }
    // Phase A: switch signal mode from the web (Commander)
+   // Phase D.9: web risk presets — switch mode + risk + timeframe live (no recompile)
+   else if (cmd == "preset_low")  { gPreset=1; ApplyMode(); RebuildIndicators(); Print("🟢 REMOTE: preset → LOW (เสี่ยงน้อย ไม้น้อย · H1)"); }
+   else if (cmd == "preset_mid")  { gPreset=2; ApplyMode(); RebuildIndicators(); Print("🟡 REMOTE: preset → MID (เสี่ยงกลาง · M15)"); }
+   else if (cmd == "preset_high") { gPreset=3; ApplyMode(); RebuildIndicators(); Print("🔴 REMOTE: preset → HIGH (เสี่ยงมาก ไม้ถี่ · M5)"); }
+   else if (cmd == "preset_auto") { gPreset=0; ApplyMode(); RebuildIndicators(); Print("⚙ REMOTE: preset → AUTO (ตาม input ScalpMode)"); }
    else if (cmd == "mode_web")  { gSignalMode = 0; Print("🌐 REMOTE: signal mode → WEB"); }
    else if (cmd == "mode_ea")   { gSignalMode = 1; Print("⚡ REMOTE: signal mode → EA (local)"); }
    else if (cmd == "mode_both") { gSignalMode = 2; Print("🔀 REMOTE: signal mode → BOTH"); }
@@ -1988,7 +2040,7 @@ void EvaluateLocalCombo(string sym, int idx) {
    else if (votesSell >= needAgree && votesBuy == 0) { net = -1; agree = votesSell; }
    else return;                               // need confluence (≥needAgree agree + no opposition)
    double conf = confSum / agree;
-   if (conf < LocalMinConf) return;
+   if (conf < effMinConf) return;   // Phase D.9: quality gate per preset
 
    bool isBuy = (net > 0);
 

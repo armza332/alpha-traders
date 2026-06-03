@@ -3689,12 +3689,50 @@ const Company = {
         ${this._loadRested().size ? `<span style="font-size:7px;color:#b6a8e0;margin-left:4px">😴 พักอยู่ ${this._loadRested().size} คน</span>` : ''}
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>
+      ${this._presetBar()}
       ${this._modeBar()}
       ${this._modePerf()}
       <div style="font-size:7px;padding:4px 6px;background:rgba(0,255,200,0.05);border:1px solid var(--teal);border-radius:5px;margin-bottom:6px">🎯 รอบนี้ใครได้คุม: ${wBanner}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${cards}</div>
       <div style="font-size:6px;color:#778;margin-top:4px">⭐ = เรตติ้งจากผลจริง (ต้อง ≥3 ไม้ถึงให้ดาว) · ออกซิก = จำนวนครั้งที่ยิง · W/L/R = ผลที่จับคู่กับไม้จริงได้</div>
     </div>`;
+  },
+
+  // Phase D.9: risk-preset selector — one click sets mode + risk + timeframe on the EA.
+  // Frequency comes from a shorter TF + shorter cooldown, NOT from lowering the entry
+  // quality bar (conf gate stays high) — ไม้ถี่แต่ยังคัดจุดเข้าที่ดี ไม่ใช่ยิงมั่ว.
+  _PRESETS: [
+    { k:'low',  label:'🟢 เสี่ยงน้อย', sub:'ไม้น้อย·คัดสุด', desc:'H1 · เสี่ยง 1%/ไม้ · เพดาน 3% · R:R 1.8 · conf≥78 · cooldown 60น · 1 ไม้/คู่ — เน้นไม้คุณภาพ เหมาะทุนน้อย/สอบกองทุน' },
+    { k:'mid',  label:'🟡 เสี่ยงกลาง', sub:'ปานกลาง',       desc:'M15 · เสี่ยง 1.5%/ไม้ · เพดาน 4% · R:R 1.6 · conf≥72 · cooldown 30น · 2 ไม้/คู่ — สมดุลความถี่กับความเสี่ยง' },
+    { k:'high', label:'🔴 เสี่ยงมาก', sub:'ไม้เยอะ·ถี่',     desc:'M5 · เสี่ยง 2%/ไม้ · เพดาน 5% · R:R 1.4 · conf≥70 · cooldown 10น · 2 ไม้/คู่ — ถี่ขึ้นแต่ยังคัด conf สูง (ไม่ยิงมั่ว)' },
+  ],
+  _presetBar() {
+    const cur = (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.preset)
+              || (typeof Settings !== 'undefined' ? Settings.get('riskPreset', 'auto') : 'auto');
+    const btns = this._PRESETS.map(p => {
+      const on = (cur === p.k);
+      const col = p.k==='low'?'#36e08f':p.k==='mid'?'#ffd24d':'#ff6b6b';
+      return `<button onclick="Company.setPreset('${p.k}')" title="${p.desc}" class="btn"
+        style="font-size:8px;padding:4px 11px;border:1px solid ${on?col:'var(--border)'};border-radius:5px;
+               background:${on?col+'26':'transparent'};color:${on?col:'#9aa'};font-weight:${on?'bold':'normal'};line-height:1.25">
+        ${p.label}${on?' ●':''}<br><span style="font-size:6px;opacity:.8">${p.sub}</span></button>`;
+    }).join('');
+    const liveBits = (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.effRisk)
+      ? `<span style="font-size:6px;color:#8a9">EA ใช้จริง: เสี่ยง ${BotBridge.lastStatus.effRisk}%/ไม้ · R:R 1:${BotBridge.lastStatus.effRR} · conf≥${BotBridge.lastStatus.effConf}</span>` : '';
+    const autoOn = (cur === 'auto');
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px;margin-bottom:6px;border:1px solid #3a2f55;border-radius:5px;flex-wrap:wrap;background:rgba(120,80,255,.04)">
+      <span style="font-size:7px;color:#c9b6ff;font-weight:bold">⚙ ระดับความเสี่ยง:</span>${btns}
+      <button onclick="Company.setPreset('auto')" title="กลับไปใช้ค่าใน EA Inputs (ScalpMode) — ไม่บังคับจากเว็บ" class="btn"
+        style="font-size:7px;padding:4px 9px;border:1px solid ${autoOn?'var(--teal)':'var(--border)'};color:${autoOn?'var(--teal)':'#889'};background:transparent">⚙ AUTO${autoOn?' ●':''}</button>
+      <span style="font-size:6px;color:#778;width:100%;margin-top:2px">เลือกระดับ → EA ปรับ timeframe + ความเสี่ยง + pullback ให้เองใน ~15 วิ (ไม่ต้อง recompile). ${liveBits}</span>
+    </div>`;
+  },
+  setPreset(p) {
+    if (typeof BotBridge !== 'undefined' && BotBridge.sendCommand) BotBridge.sendCommand('preset_' + p, { silent: true });
+    if (typeof Settings !== 'undefined') Settings.set('riskPreset', p);
+    const names = { low:'🟢 เสี่ยงน้อย ไม้น้อย (H1)', mid:'🟡 เสี่ยงกลาง (M15)', high:'🔴 เสี่ยงมาก ไม้ถี่ (M5)', auto:'⚙ AUTO (ตาม EA Inputs)' };
+    if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Preset', `⚙ ตั้งระดับความเสี่ยง → ${names[p]||p} (ส่งคำสั่งไป EA แล้ว)`);
+    if (typeof BotBridge !== 'undefined' && BotBridge.render) BotBridge.render();
   },
 
   // Phase A: signal-mode selector (sends mode_web/ea/both command to the EA)
