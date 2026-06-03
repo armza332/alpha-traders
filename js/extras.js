@@ -3689,7 +3689,7 @@ const Company = {
         ${this._loadRested().size ? `<span style="font-size:7px;color:#b6a8e0;margin-left:4px">😴 พักอยู่ ${this._loadRested().size} คน</span>` : ''}
         <button onclick="Company.freshTest()" class="btn" style="font-size:7px;padding:2px 8px;margin-left:4px;background:var(--orange);color:#000">🧹 ล้างผลเทส เริ่มใหม่</button>
       </div>
-      ${this._presetBar()}
+      ${this._riskPresetBar()}
       ${this._modeBar()}
       ${this._modePerf()}
       <div style="font-size:7px;padding:4px 6px;background:rgba(0,255,200,0.05);border:1px solid var(--teal);border-radius:5px;margin-bottom:6px">🎯 รอบนี้ใครได้คุม: ${wBanner}</div>
@@ -3706,9 +3706,11 @@ const Company = {
     { k:'mid',  label:'🟡 เสี่ยงกลาง', sub:'ปานกลาง',       desc:'M15 · เสี่ยง 1.5%/ไม้ · เพดาน 4% · R:R 1.6 · conf≥72 · cooldown 30น · 2 ไม้/คู่ — สมดุลความถี่กับความเสี่ยง' },
     { k:'high', label:'🔴 เสี่ยงมาก', sub:'ไม้เยอะ·ถี่',     desc:'M5 · เสี่ยง 2%/ไม้ · เพดาน 5% · R:R 1.4 · conf≥70 · cooldown 10น · 2 ไม้/คู่ — ถี่ขึ้นแต่ยังคัด conf สูง (ไม่ยิงมั่ว)' },
   ],
-  _presetBar() {
-    const cur = (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.preset)
-              || (typeof Settings !== 'undefined' ? Settings.get('riskPreset', 'auto') : 'auto');
+  _riskPresetBar() {
+    // Highlight = what the USER picked (Settings) so the click reacts instantly.
+    // The EA's actual reported preset is shown separately (it confirms within ~15s).
+    const cur = (typeof Settings !== 'undefined' ? Settings.get('riskPreset', 'auto') : 'auto');
+    const eaPreset = (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.preset) || null;
     const btns = this._PRESETS.map(p => {
       const on = (cur === p.k);
       const col = p.k==='low'?'#36e08f':p.k==='mid'?'#ffd24d':'#ff6b6b';
@@ -3717,8 +3719,16 @@ const Company = {
                background:${on?col+'26':'transparent'};color:${on?col:'#9aa'};font-weight:${on?'bold':'normal'};line-height:1.25">
         ${p.label}${on?' ●':''}<br><span style="font-size:6px;opacity:.8">${p.sub}</span></button>`;
     }).join('');
-    const liveBits = (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.effRisk)
-      ? `<span style="font-size:6px;color:#8a9">EA ใช้จริง: เสี่ยง ${BotBridge.lastStatus.effRisk}%/ไม้ · R:R 1:${BotBridge.lastStatus.effRR} · conf≥${BotBridge.lastStatus.effConf}</span>` : '';
+    // Confirmation line: green when the EA already runs the picked preset, amber while waiting.
+    let liveBits = '';
+    if (typeof BotBridge !== 'undefined' && BotBridge.lastStatus && BotBridge.lastStatus.effRisk) {
+      const s = BotBridge.lastStatus;
+      const synced = (eaPreset === cur);
+      liveBits = `<span style="font-size:6px;color:${synced?'#36e08f':'#ffd24d'}">
+        ${synced?'✓ EA ตั้งแล้ว':'⏳ รอ EA รับ ('+(eaPreset||'auto')+')'} · ใช้จริง: เสี่ยง ${s.effRisk}%/ไม้ · R:R 1:${s.effRR} · conf≥${s.effConf}</span>`;
+    } else {
+      liveBits = `<span style="font-size:6px;color:#778">⚠️ ยังไม่เห็นสถานะ EA — ตรวจ Bot Bridge URL / EA online</span>`;
+    }
     const autoOn = (cur === 'auto');
     return `<div style="display:flex;align-items:center;gap:6px;padding:6px;margin-bottom:6px;border:1px solid #3a2f55;border-radius:5px;flex-wrap:wrap;background:rgba(120,80,255,.04)">
       <span style="font-size:7px;color:#c9b6ff;font-weight:bold">⚙ ระดับความเสี่ยง:</span>${btns}
@@ -3732,7 +3742,7 @@ const Company = {
     if (typeof Settings !== 'undefined') Settings.set('riskPreset', p);
     const names = { low:'🟢 เสี่ยงน้อย ไม้น้อย (H1)', mid:'🟡 เสี่ยงกลาง (M15)', high:'🔴 เสี่ยงมาก ไม้ถี่ (M5)', auto:'⚙ AUTO (ตาม EA Inputs)' };
     if (typeof UI !== 'undefined') UI.addLog?.('CMD', 'Preset', `⚙ ตั้งระดับความเสี่ยง → ${names[p]||p} (ส่งคำสั่งไป EA แล้ว)`);
-    if (typeof BotBridge !== 'undefined' && BotBridge.render) BotBridge.render();
+    if (typeof Company !== 'undefined') Company.refresh();   // re-render Employee Board so the highlight updates
   },
 
   // Phase A: signal-mode selector (sends mode_web/ea/both command to the EA)
