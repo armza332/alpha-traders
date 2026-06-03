@@ -130,7 +130,11 @@ function doPost(e) {
       const isToggle = /^sym_[1-3]_(on|off)$/.test(c);            // Phase 12.9 per-symbol
       const isAISig  = /^ai_(buy|sell)_[A-Za-z0-9_]+$/.test(c);   // Phase 13 AI signals (+agent tag suffix)
       const isCombo  = /^combo_[A-Za-z]{6}_[a-z.]+$/.test(c);     // Phase C: per-pair combo push
-      if (!base.includes(c) && !isToggle && !isAISig && !isCombo) {
+      const isPreset = /^preset_(low|mid|high|auto)$/.test(c);    // Phase D.9 risk presets
+      // POST is already secret-gated (line ~88), so accept any well-formed command
+      // token too — this future-proofs new command types (no bridge re-deploy needed).
+      const isSafe   = /^[a-z][a-z0-9_.]{1,39}$/i.test(c);
+      if (!base.includes(c) && !isToggle && !isAISig && !isCombo && !isPreset && !isSafe) {
         return json({ ok: false, error: 'Unknown cmd: ' + c });
       }
       const lastId = parseInt(props.getProperty('LAST_CMD_ID') || '0', 10);
