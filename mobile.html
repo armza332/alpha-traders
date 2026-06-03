@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0a0e17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ALPHA">
+<title>ALPHA · Mobile</title>
+<style>
+  :root{
+    --bg:#0a0e17; --card:#121829; --card2:#0e1320; --border:#22304d;
+    --teal:#00ffc8; --gold:#ffd24d; --green:#36e08f; --red:#ff5b6b;
+    --amber:#ffb84d; --txt:#e8eefc; --dim:#8a97b5; --purple:#a78bfa;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  body{padding:10px 10px 40px;max-width:520px;margin:0 auto}
+  .row{display:flex;gap:8px}
+  .between{justify-content:space-between;align-items:center}
+  .wrap{flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:10px}
+  .lbl{font-size:10px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase}
+  .big{font-size:30px;font-weight:800;line-height:1.1}
+  .mid{font-size:16px;font-weight:700}
+  .sm{font-size:11px}.xs{font-size:9px;color:var(--dim)}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px}
+  .pill{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid var(--border)}
+  /* header */
+  #top{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 12px}
+  #brand{font-size:17px;font-weight:800;letter-spacing:.5px}
+  #brand span{color:var(--teal)}
+  /* buttons */
+  button{font-family:inherit;border:none;border-radius:12px;font-weight:700;
+    padding:13px 10px;font-size:13px;color:#fff;width:100%;cursor:pointer;transition:.1s;
+    -webkit-user-select:none;user-select:none}
+  button:active{transform:scale(.97);opacity:.85}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .preset{padding:11px 6px;border:2px solid var(--border);background:var(--card2);color:var(--dim);
+    border-radius:12px;font-size:12px;line-height:1.3;text-align:center}
+  .preset .t{font-weight:800;font-size:13px}.preset .s{font-size:9px;opacity:.85;font-weight:500}
+  .pos{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid var(--border)}
+  .pos:last-child{border-bottom:none}
+  .badge{font-size:9px;font-weight:800;padding:2px 7px;border-radius:6px}
+  .b-buy{background:rgba(54,224,143,.15);color:var(--green)}
+  .b-sell{background:rgba(255,91,107,.15);color:var(--red)}
+  .empty{color:var(--dim);font-size:12px;text-align:center;padding:14px}
+  input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
+    background:var(--card2);color:var(--txt);font-size:13px}
+  .muted{color:var(--dim)}
+  #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#1b2438;
+    border:1px solid var(--border);color:var(--txt);padding:10px 16px;border-radius:10px;
+    font-size:12px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90%}
+  #toast.show{opacity:1}
+  .spin{animation:sp 1s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <div id="brand">▲ ALPHA<span> traders</span></div>
+  <div id="conn" class="pill">⏳ …</div>
+</div>
+
+<div id="app"><div class="empty">กำลังโหลด…</div></div>
+
+<!-- SETUP (shown only if no bridge URL) -->
+<div id="setup" class="card" style="display:none">
+  <div class="lbl">ตั้งค่า Bot Bridge URL</div>
+  <p class="sm muted" style="margin:8px 0">วาง URL ตัวเดียวกับในเว็บหลัก (Settings → Bot Bridge URL) ลงท้าย /exec</p>
+  <input id="urlIn" placeholder="https://script.google.com/.../exec" autocomplete="off">
+  <button style="background:var(--teal);color:#022;margin-top:10px" onclick="saveUrl()">💾 บันทึก</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SECRET = 'twr-secret';
+const POLL_MS = 10000;
+let bridgeURL = '';
+let timer = null;
+
+// ── settings (shared with the main web app via localStorage 'twr_settings') ──
+function getURL(){
+  try { const s = JSON.parse(localStorage.getItem('twr_settings')||'{}'); return (s.botBridgeURL||'').trim(); }
+  catch(e){ return ''; }
+}
+function saveUrl(){
+  const v = document.getElementById('urlIn').value.trim();
+  if(v.length<20){ toast('URL สั้นไป'); return; }
+  let s={}; try{ s=JSON.parse(localStorage.getItem('twr_settings')||'{}'); }catch(e){}
+  s.botBridgeURL=v; localStorage.setItem('twr_settings', JSON.stringify(s));
+  bridgeURL=v; document.getElementById('setup').style.display='none';
+  toast('บันทึกแล้ว'); start();
+}
+
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ── commands (POST, no-cors like the main app) ──
+async function cmd(c, confirmMsg){
+  if(confirmMsg && !confirm(confirmMsg)) return;
+  try{
+    await fetch(bridgeURL,{method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({type:'cmd',secret:SECRET,cmd:c})});
+    toast('✓ ส่งคำสั่ง: '+c+' (EA รับใน ~15 วิ)');
+    setTimeout(refresh, 2500);
+  }catch(e){ toast('ส่งไม่สำเร็จ'); }
+}
+function setPreset(p){ try{ let s=JSON.parse(localStorage.getItem('twr_settings')||'{}'); s.riskPreset=p; localStorage.setItem('twr_settings',JSON.stringify(s)); }catch(e){} cmd('preset_'+p); }
+
+// ── fetch + render ──
+async function refresh(){
+  if(!bridgeURL) return;
+  const conn=document.getElementById('conn');
+  try{
+    const r = await fetch(bridgeURL+'?action=status&t='+Date.now());
+    const d = await r.json();
+    if(!d.ok || !d.status){ conn.textContent='🔴 ไม่มีข้อมูล'; conn.style.color='var(--red)'; return; }
+    let trades=[];
+    try{ const tr=await fetch(bridgeURL+'?action=trades&t='+Date.now()); const tj=await tr.json(); if(tj.ok) trades=tj.trades||[]; }catch(e){}
+    let news=null;
+    try{ const nr=await fetch(bridgeURL+'?action=news&win=30&t='+Date.now()); const nj=await nr.json(); if(nj.ok) news=nj.news; }catch(e){}
+    render(d.status, trades, news);
+  }catch(e){
+    conn.textContent='🔴 ออฟไลน์'; conn.style.color='var(--red)';
+  }
+}
+
+function money(n){ n=parseFloat(n)||0; return (n<0?'-$':'$')+Math.abs(n).toFixed(2); }
+function fmt(n,d){ return (parseFloat(n)||0).toFixed(d==null?2:d); }
+function ago(s){ s=Math.round(s||0); return s<60?s+'วิ':Math.round(s/60)+'น'; }
+
+const PRESETS=[
+  {k:'low', t:'🟢 น้อย', s:'H1·1%', c:'var(--green)'},
+  {k:'mid', t:'🟡 กลาง', s:'M15·1.5%', c:'var(--gold)'},
+  {k:'high',t:'🔴 มาก', s:'M5·2%', c:'var(--red)'},
+];
+
+function render(s, trades, news){
+  const conn=document.getElementById('conn');
+  conn.innerHTML = (s.online?'🟢 ONLINE':'🔴 OFFLINE '+ago(s.ageSec)+' ก่อน');
+  conn.style.color = s.online?'var(--green)':'var(--red)';
+
+  const pnl=parseFloat(s.todayPnL)||0;
+  const pnlC = pnl>0?'var(--green)':pnl<0?'var(--red)':'var(--dim)';
+  const preset=(s.preset||'auto');
+  const paused = s.paused===true || s.paused==='true';
+  const newsHalt = !!(news && news.block===true);
+  const newsRisk = news ? (news.risk||'LOW') : null;
+
+  // header badges
+  const modeTxt = (s.signalMode||'ea').toUpperCase();
+  const presetBadge = preset==='auto'
+    ? `<span class="pill" style="color:var(--dim)">⚙ AUTO</span>`
+    : `<span class="pill" style="color:${preset==='low'?'var(--green)':preset==='mid'?'var(--gold)':'var(--red)'};border-color:currentColor">${preset==='low'?'🟢':preset==='mid'?'🟡':'🔴'} ${preset.toUpperCase()}</span>`;
+
+  const positions = s.positions||[];
+  const posHtml = positions.length ? positions.map(p=>{
+    const pf=parseFloat(p.profit)||0; const buy=(p.side==='buy');
+    return `<div class="pos">
+      <div><span class="badge ${buy?'b-buy':'b-sell'}">${buy?'▲ BUY':'▼ SELL'}</span>
+        <b style="margin-left:6px">${(p.sym||'').replace(/m$/,'')}</b>
+        <span class="xs"> ${fmt(p.vol)} lot</span></div>
+      <div class="mid" style="color:${pf>=0?'var(--green)':'var(--red)'}">${money(pf)}</div>
+    </div>`;
+  }).join('') : `<div class="empty">— ไม่มีไม้เปิดอยู่ —</div>`;
+
+  // recent closed trades (last 6)
+  const recent = (trades||[]).slice(0,6).map(t=>{
+    const out=t.outcome||''; const c=out==='win'?'var(--green)':out==='loss'?'var(--red)':'var(--dim)';
+    const rm=parseFloat(t.rMult); const buy=(t.side==='buy');
+    return `<div class="pos">
+      <div><span class="badge ${buy?'b-buy':'b-sell'}">${buy?'▲':'▼'}</span>
+        <b style="margin-left:6px">${(t.sym||'').replace(/m$/,'')}</b>
+        <span class="xs"> ${t.agent||''}</span></div>
+      <div class="sm" style="color:${c};font-weight:800">${out.toUpperCase()} ${isNaN(rm)?'':(rm>=0?'+':'')+rm.toFixed(1)+'R'}</div>
+    </div>`;
+  }).join('') || `<div class="empty">ยังไม่มีไม้ปิด</div>`;
+
+  document.getElementById('app').innerHTML = `
+    <!-- alerts -->
+    ${newsHalt?`<div class="card" style="border-color:var(--red);background:rgba(255,91,107,.08);padding:10px"><b style="color:var(--red)">🛑 NEWS HALT</b> <span class="sm muted">— งดเปิดไม้ใหม่ ใกล้ข่าวแรง</span></div>`:''}
+    ${paused?`<div class="card" style="border-color:var(--amber);background:rgba(255,184,77,.08);padding:10px"><b style="color:var(--amber)">⏸ PAUSED</b> <span class="sm muted">— บอทพักอยู่</span></div>`:''}
+
+    <!-- account -->
+    <div class="card">
+      <div class="row between">
+        <div><div class="lbl">Balance</div><div class="big">${money(s.balance)}</div></div>
+        <div style="text-align:right"><div class="lbl">Equity</div><div class="mid">${money(s.equity)}</div></div>
+      </div>
+      <div class="row between" style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+        <div><div class="lbl">P/L วันนี้</div><div class="mid" style="color:${pnlC}">${pnl>=0?'+':''}${money(pnl)}</div></div>
+        <div style="text-align:center"><div class="lbl">วันนี้</div><div class="mid"><span style="color:var(--green)">${s.todayWins||0}W</span> · <span style="color:var(--red)">${s.todayLosses||0}L</span></div></div>
+        <div style="text-align:right"><div class="lbl">Port Risk</div><div class="mid">${fmt(s.portfolioRisk,1)}%<span class="xs">/${fmt(s.maxPortfolioRisk,0)}%</span></div></div>
+      </div>
+    </div>
+
+    <!-- status row -->
+    <div class="card" style="padding:10px">
+      <div class="row between wrap" style="gap:6px">
+        ${presetBadge}
+        <span class="pill" style="color:var(--purple)">⚡ ${modeTxt}</span>
+        ${newsRisk?`<span class="pill" style="color:${newsHalt?'var(--red)':newsRisk==='MED'?'var(--gold)':'#7fb0ff'}">📰 ${newsHalt?'HALT':newsRisk}</span>`:''}
+        ${s.effRisk?`<span class="pill muted">เสี่ยง ${s.effRisk}% · R:R 1:${s.effRR} · conf≥${s.effConf}</span>`:''}
+      </div>
+    </div>
+
+    <!-- preset switcher -->
+    <div class="card">
+      <div class="lbl" style="margin-bottom:8px">⚙ ระดับความเสี่ยง</div>
+      <div class="grid3">
+        ${PRESETS.map(p=>`<div class="preset" onclick="setPreset('${p.k}')"
+          style="${preset===p.k?`border-color:${p.c};color:${p.c};background:${p.c}1a`:''}">
+          <div class="t">${p.t}</div><div class="s">${p.s}</div></div>`).join('')}
+      </div>
+      <div class="preset" style="margin-top:8px;${preset==='auto'?'border-color:var(--teal);color:var(--teal)':''}" onclick="setPreset('auto')">
+        <div class="t">⚙ AUTO</div><div class="s">ตามค่าใน EA</div></div>
+    </div>
+
+    <!-- open positions -->
+    <div class="card">
+      <div class="lbl" style="margin-bottom:4px">ไม้ที่เปิดอยู่ (${positions.length})</div>
+      ${posHtml}
+    </div>
+
+    <!-- recent trades -->
+    <div class="card">
+      <div class="lbl" style="margin-bottom:4px">ไม้ที่ปิดล่าสุด</div>
+      ${recent}
+    </div>
+
+    <!-- controls -->
+    <div class="grid2">
+      ${paused
+        ? `<button style="background:var(--green);color:#022" onclick="cmd('resume')">▶️ Resume</button>`
+        : `<button style="background:var(--amber);color:#221a00" onclick="cmd('pause','⏸ พักบอท? (ไม่เปิดไม้ใหม่ ดูแลไม้เก่าต่อ)')">⏸ Pause</button>`}
+      <button style="background:var(--red)" onclick="cmd('close_all','⚠️ ปิดทุกออเดอร์ทันที?')">🔴 Close All</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button style="background:var(--card2);color:var(--dim);border:1px solid var(--border)" onclick="refresh();toast('รีเฟรช')">🔄 รีเฟรช</button>
+    </div>
+    <div class="xs" style="text-align:center;margin-top:10px">อัปเดตล่าสุด ${new Date().toLocaleTimeString('th-TH')} · v1.44 · auto ทุก ${POLL_MS/1000}s</div>
+  `;
+}
+
+function start(){
+  if(timer) clearInterval(timer);
+  refresh();
+  timer=setInterval(refresh, POLL_MS);
+}
+
+// init
+bridgeURL=getURL();
+if(!bridgeURL){
+  document.getElementById('app').innerHTML='';
+  document.getElementById('setup').style.display='block';
+}else{
+  start();
+}
+// refresh when app returns to foreground
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) refresh(); });
+</script>
+</body>
+</html>
