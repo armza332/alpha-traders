@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.43 · Phase D.9b"
+#define EA_VERSION "v1.44 · Phase D.10"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -79,7 +79,8 @@ input double  PartialPct         = 50;            // % of position to close (the
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
 input double  MaxPerTradeRiskPct = 4.0;           // 🛡 Phase C.1: เพดานเสี่ยง/ไม้ (ค่าฝั่ง SWING; SCALP ใช้ ScalpMaxPerTradePct) — 4% = gold ~$100+ trades some setups; blocks BTC until bigger
 input double  CryptoMinSLPct     = 0.6;           // 🪙 Phase C.5: min SL for BTC/ETH = % of price (ATR is too tight for crypto; 0 = off)
-input double  XauMinSLPct        = 0.15;          // 🥇 Phase C.8: min SL for gold (XAU) = % of price (~$7 on $4500; stops gold noise-stop; 0 = off)
+input double  XauMinSLPct        = 0.10;          // 🥇 Phase C.8: min SL for gold (XAU) = % of price (0.10% ≈ $4.5 on $4500 → ~4% risk บนพอร์ต $110; ลดจาก 0.15 ให้ทุนน้อยเทรดทองได้; 0 = off)
+input double  XauMaxRiskPct       = 5.5;           // 🥇 Phase D.10: เพดานเสี่ยง/ไม้ เฉพาะทอง (ทองล็อตต่ำสุด 0.01 เสี่ยงสูงโดยธรรมชาติ → ให้เพดานสูงกว่าทั่วไป เพื่อให้พอร์ตเล็กเทรดได้; 0 = ใช้เพดานปกติ)
 
 input group "=== SAFETY GUARDS (Phase D) ==="
 input double  MaxDailyLossPct    = 5.0;           // 🛑 หยุดเทรดทั้งวันเมื่อขาดทุนรวมวันนี้ ≥ % ของพอร์ตต้นวัน (0 = off)
@@ -589,9 +590,14 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
       if (tv > 0 && ts > 0 && eq > 0) {
          double riskMoney = (slDist / ts) * tv * lot;
          double riskPct   = riskMoney / eq * 100.0;
-         if (riskPct > effMaxPerTrade) {
+         // Phase D.10: gold gets its own (higher) per-trade cap — at 0.01 lot gold
+         // is inherently riskier on a small account, so allow a touch more so $100
+         // can trade it; FX still uses the preset cap (effMaxPerTrade).
+         double capPct = effMaxPerTrade;
+         if (XauMaxRiskPct > 0 && SymBaseMatch(sym, "XAUUSD")) capPct = XauMaxRiskPct;
+         if (riskPct > capPct) {
             PrintFormat("🚫 %s SKIP — trade risk %.1f%% > max %.1f%% (lot %.2f, risk $%.2f on eq $%.2f) — เล็กไปสำหรับคู่นี้",
-                        sym, riskPct, effMaxPerTrade, lot, riskMoney, eq);
+                        sym, riskPct, capPct, lot, riskMoney, eq);
             return;
          }
       }
