@@ -69,6 +69,18 @@
 
 <div id="app"><div class="empty">กำลังโหลด…</div></div>
 
+<!-- OFFICE (lazy iframe, kept OUTSIDE #app so it never reloads on refresh) -->
+<div id="officeCard" class="card" style="display:none;padding:10px">
+  <div class="row between" onclick="toggleOffice()" style="cursor:pointer">
+    <div><span class="lbl">🏢 ออฟฟิศทีม</span> <span class="xs">— แตะเพื่อ <span id="offTog">เปิด/ปิด</span></span></div>
+    <span id="offChevron" class="mid">▸</span>
+  </div>
+  <div id="officeWrap" style="display:none;margin-top:10px">
+    <iframe id="hq" title="office" style="width:100%;height:300px;border:1px solid var(--border);border-radius:10px;background:#0a0e17"></iframe>
+    <div class="xs" style="text-align:center;margin-top:5px">ออฟฟิศจำลองทีม AI · ดูข้อมูลจริงพอร์ตที่การ์ดด้านบน</div>
+  </div>
+</div>
+
 <!-- SETUP (shown only if no bridge URL) -->
 <div id="setup" class="card" style="display:none">
   <div class="lbl">ตั้งค่า Bot Bridge URL</div>
@@ -252,8 +264,20 @@ function render(s, trades, news){
   `;
 }
 
+// ── office (lazy-loaded pixel HQ; src set only on first open) ──
+function toggleOffice(){
+  const wrap=document.getElementById('officeWrap');
+  const hq=document.getElementById('hq');
+  const chev=document.getElementById('offChevron');
+  const open = wrap.style.display==='none';
+  if(open && !hq.src) hq.src='agent-hq.html';   // lazy load once
+  wrap.style.display = open?'block':'none';
+  chev.textContent = open?'▾':'▸';
+}
+
 function start(){
   if(timer) clearInterval(timer);
+  document.getElementById('officeCard').style.display='block';
   refresh();
   timer=setInterval(refresh, POLL_MS);
 }
