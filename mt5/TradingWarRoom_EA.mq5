@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.40 · Phase D.4"
+#define EA_VERSION "v1.41 · Phase D.8"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -49,9 +49,12 @@ input double  ScalpSLMult        = 0.8;           // Tighter SL (M1 = small move
 input double  ScalpRR            = 1.3;           // Lower R:R (scalp aims for many small wins)
 input int     ScalpCooldownMin   = 3;             // 3-min cooldown (was 30 for swing)
 input int     ScalpMaxPosPerSym  = 1;             // Stricter — 1 trade at a time per symbol
+input double  ScalpRiskPercent   = 1.0;           // ⚡ Phase D.8: risk %/ไม้ ตอน SCALP (ถี่กว่า → เสี่ยง/ไม้ น้อยลง)
+input double  ScalpMaxPerTradePct = 2.5;          // ⚡ Phase D.8: เพดานเสี่ยงสูงสุด/ไม้ ตอน SCALP (คุมเข้มกว่า swing)
+input double  ScalpPullbackZone  = 0.15;          // ⚡ Phase D.8: โซน pullback ตอน SCALP (แคบ → เข้าไม้ไวขึ้น)
 
 input group "=== RISK MANAGEMENT ==="
-input double  RiskPercent        = 1.5;           // % of balance per trade
+input double  RiskPercent        = 1.5;           // % ต่อไม้ (ค่าฝั่ง SWING; SCALP ใช้ ScalpRiskPercent — Phase D.8)
 input double  SLAtrMult          = 1.5;           // SL = ATR × this
 input double  RewardRiskRatio    = 1.6;           // TP = SL × this
 input double  MinLot             = 0.01;
@@ -74,7 +77,7 @@ input bool    UsePartialTP       = true;          // 💰 Phase 26: close part o
 input double  PartialAtR         = 1.0;           // Take partial profit at +N×R
 input double  PartialPct         = 50;            // % of position to close (the rest runs to TP)
 input double  MaxPortfolioRiskPct= 6.0;           // ⚠️ Max total open risk % of equity (stop-out guard)
-input double  MaxPerTradeRiskPct = 4.0;           // 🛡 Phase C.1: max risk % of equity on ONE trade (4% = gold ~$100+ trades some setups; blocks BTC until bigger)
+input double  MaxPerTradeRiskPct = 4.0;           // 🛡 Phase C.1: เพดานเสี่ยง/ไม้ (ค่าฝั่ง SWING; SCALP ใช้ ScalpMaxPerTradePct) — 4% = gold ~$100+ trades some setups; blocks BTC until bigger
 input double  CryptoMinSLPct     = 0.6;           // 🪙 Phase C.5: min SL for BTC/ETH = % of price (ATR is too tight for crypto; 0 = off)
 input double  XauMinSLPct        = 0.15;          // 🥇 Phase C.8: min SL for gold (XAU) = % of price (~$7 on $4500; stops gold noise-stop; 0 = off)
 
@@ -115,7 +118,7 @@ input double  DxyDeadband        = 0.05;          // 🎯 FirmSniper: |USD trend
 input bool    FirmSniperUseNews  = true;          // 🎯 Phase C.3: ใช้ News filter จาก bridge (ครบ 5 ชั้น) — งดเทรดช่วงข่าวแรง
 input bool    UsePullbackEntry   = true;          // 🎯 Phase C.9: รอ pullback ก่อนเข้า — ไม่ sell ติดก้น/ไม่ buy ติดยอด (entry สวยขึ้น)
 input int     PullbackBars       = 8;             // มองย้อนกี่แท่งหา range สำหรับ pullback
-input double  PullbackZone       = 0.30;          // โซนปลาย: SELL ต้องอยู่เหนือ 30% ล่าง · BUY ต้องต่ำกว่า 30% บน
+input double  PullbackZone       = 0.15;          // โซนปลาย (ค่าฝั่ง SWING; SCALP ใช้ ScalpPullbackZone — Phase D.8): SELL เหนือ N% ล่าง · BUY ต่ำกว่า N% บน · 0.15 = เข้าได้ในเทรนด์
 
 //═══════════════════ GLOBALS ════════════════════════════════════════
 CTrade        trade;
@@ -158,24 +161,31 @@ bool          gDailyHalt    = false; // Phase D: daily-loss / losing-streak halt
 ENUM_TIMEFRAMES effTF;
 double          effRSIOver, effRSIUnder, effSLMult, effRR;
 int             effCooldownMin, effMaxPos;
+double          effRisk, effMaxPerTrade, effPullbackZone;   // Phase D.8: risk auto-adjusts with mode
 
 void ApplyMode() {
    if (ScalpMode) {
-      effTF          = ScalpTF;
-      effRSIUnder    = ScalpRSIOversold;
-      effRSIOver     = ScalpRSIOverbought;
-      effSLMult      = ScalpSLMult;
-      effRR          = ScalpRR;
-      effCooldownMin = ScalpCooldownMin;
-      effMaxPos      = ScalpMaxPosPerSym;
+      effTF           = ScalpTF;
+      effRSIUnder     = ScalpRSIOversold;
+      effRSIOver      = ScalpRSIOverbought;
+      effSLMult       = ScalpSLMult;
+      effRR           = ScalpRR;
+      effCooldownMin  = ScalpCooldownMin;
+      effMaxPos       = ScalpMaxPosPerSym;
+      effRisk         = ScalpRiskPercent;     // Phase D.8: scalp = ถี่ → เสี่ยง/ไม้ น้อยลง
+      effMaxPerTrade  = ScalpMaxPerTradePct;  // Phase D.8: เพดาน/ไม้ เข้มขึ้น
+      effPullbackZone = ScalpPullbackZone;    // Phase D.8: pullback แคบ → เข้าไว
    } else {
-      effTF          = Timeframe;
-      effRSIUnder    = RSIOversold;
-      effRSIOver     = RSIOverbought;
-      effSLMult      = SLAtrMult;
-      effRR          = RewardRiskRatio;
-      effCooldownMin = SignalCooldownMin;
-      effMaxPos      = MaxOpenPositions;
+      effTF           = Timeframe;
+      effRSIUnder     = RSIOversold;
+      effRSIOver      = RSIOverbought;
+      effSLMult       = SLAtrMult;
+      effRR           = RewardRiskRatio;
+      effCooldownMin  = SignalCooldownMin;
+      effMaxPos       = MaxOpenPositions;
+      effRisk         = RiskPercent;          // Phase D.8: swing = เสี่ยง/ไม้ มาตรฐาน
+      effMaxPerTrade  = MaxPerTradeRiskPct;
+      effPullbackZone = PullbackZone;
    }
 }
 
@@ -246,8 +256,8 @@ int OnInit() {
    string symStr = symbols[0];
    for (int i = 1; i < nActiveSyms; i++) symStr += " + " + symbols[i];
    PrintFormat("   Trading %d symbols: %s", nActiveSyms, symStr);
-   PrintFormat("   Timeframe: %s | Risk: %.1f%% | R:R 1:%.1f | Cooldown %dmin",
-               EnumToString(effTF), RiskPercent, effRR, effCooldownMin);
+   PrintFormat("   Timeframe: %s | Risk: %.1f%%/ไม้ | เพดาน/ไม้ %.1f%% | R:R 1:%.1f | Pullback %.2f | Cooldown %dmin",
+               EnumToString(effTF), effRisk, effMaxPerTrade, effRR, effPullbackZone, effCooldownMin);
    PrintFormat("   Account: $%.2f balance, %.2f equity",
                AccountInfoDouble(ACCOUNT_BALANCE),
                AccountInfoDouble(ACCOUNT_EQUITY));
@@ -536,9 +546,9 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
       if (tv > 0 && ts > 0 && eq > 0) {
          double riskMoney = (slDist / ts) * tv * lot;
          double riskPct   = riskMoney / eq * 100.0;
-         if (riskPct > MaxPerTradeRiskPct) {
+         if (riskPct > effMaxPerTrade) {
             PrintFormat("🚫 %s SKIP — trade risk %.1f%% > max %.1f%% (lot %.2f, risk $%.2f on eq $%.2f) — เล็กไปสำหรับคู่นี้",
-                        sym, riskPct, MaxPerTradeRiskPct, lot, riskMoney, eq);
+                        sym, riskPct, effMaxPerTrade, lot, riskMoney, eq);
             return;
          }
       }
@@ -567,7 +577,7 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
 //═══════════════════ LOT CALCULATION ════════════════════════════════
 double CalculateLot(string sym, double slDistance) {
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double riskUSD = balance * RiskPercent / 100.0;
+   double riskUSD = balance * effRisk / 100.0;   // Phase D.8: ใช้ risk ตามโหมด
 
    double tickValue = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
    double tickSize  = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE);
@@ -1066,7 +1076,7 @@ void UpdateDashboard() {
    DashLabel("SYS_LINE2", DASH_X+16, y+38,
              StringFormat("%s  Risk %.1f%%  Port %.1f%%/%.0f%%  R:R 1:%.1f",
                           ScalpMode ? "⚡SCALP" : "🌊SWING",
-                          RiskPercent, portRiskNow, MaxPortfolioRiskPct, effRR),
+                          effRisk, portRiskNow, MaxPortfolioRiskPct, effRR),
              portClr, 7);
 
    // ── Footer signal hunt bar ──
@@ -1992,8 +2002,8 @@ void EvaluateLocalCombo(string sym, int idx) {
          double phi = -1e18, plo = 1e18;
          for (int i = 0; i < pb; i++) { phi = MathMax(phi, pr[i].high); plo = MathMin(plo, pr[i].low); }
          double pos = (phi > plo) ? (pr[0].close - plo) / (phi - plo) : 0.5;
-         if (isBuy && pos > 1.0 - PullbackZone) { PrintFormat("⏳ %s BUY รอ pullback — ติดยอด (pos %.2f)", sym, pos); return; }
-         if (!isBuy && pos < PullbackZone)      { PrintFormat("⏳ %s SELL รอเด้ง — ติดก้น (pos %.2f)", sym, pos); return; }
+         if (isBuy && pos > 1.0 - effPullbackZone) { PrintFormat("⏳ %s BUY รอ pullback — ติดยอด (pos %.2f)", sym, pos); return; }
+         if (!isBuy && pos < effPullbackZone)      { PrintFormat("⏳ %s SELL รอเด้ง — ติดก้น (pos %.2f)", sym, pos); return; }
       }
    }
 
@@ -2066,7 +2076,7 @@ void CaptureOpenContext(ulong dealTicket) {
    }
 
    double bal = AccountInfoDouble(ACCOUNT_BALANCE);
-   double riskUSD = bal * RiskPercent / 100.0;
+   double riskUSD = bal * effRisk / 100.0;   // Phase D.8: ใช้ risk ตามโหมด
 
    // Get SL + agent tag from position (just opened). Comment = TWR-<B|S>-<tag>-R<rsi>
    double sl = 0; string cmt = "";
