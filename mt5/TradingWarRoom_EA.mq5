@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.45 · Phase D.11"
+#define EA_VERSION "v1.46 · Phase D.12"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -2079,7 +2079,10 @@ void EvaluateLocalCombo(string sym, int idx) {
    PrintFormat("⚡ LOCAL COMBO %s %s | %d agents agree [%s] conf %.0f",
                sym, isBuy ? "BUY" : "SELL", agree, detail, conf);
    ExecuteTrade(sym, idx, isBuy, atrArr[0], rsiArr[0], "local");
-   lastSignalTime[idx] = TimeCurrent();
+   // Phase D.12: cooldown is set INSIDE ExecuteTrade (line ~614) ONLY when a trade
+   // actually opens. We do NOT set it here — so a SKIP (e.g. gold risk > cap, spread
+   // guard, lot too small) does NOT start the cooldown; the pair keeps re-checking
+   // each new bar instead of going silent for the whole cooldown window.
 }
 
 //═══════════════════ PHASE 12.6: Live Training Loop ═══════════════════
