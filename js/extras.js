@@ -3059,7 +3059,7 @@ const Company = {
     xau_meanrev:  { name:'Gold Elite',     icon:'🥇', agents:['elliott','fvg','bollinger'], desc:'ทอง (winner ล้วน): Elliott +43R⭐ + FVG +41R⭐ + Bollinger +18R — 3 ตัวกำไรสูงสุดของทองจาก KB 459k' },
     xau_liquidity:{ name:'Gold Structure', icon:'🥇', agents:['smc','fvg','orderblock'],  desc:'ทอง (โครงสร้าง): SMC +6R + FVG +41R⭐ + Order Block +5R — เน้นโซน/ช่องว่างที่ KB ยืนยันบวก' },
     aud_trend:    { name:'Aussie Trend',   icon:'🇦🇺', agents:['utbot','smc','ichimoku'],     desc:'AUD เทพสุด: UT-Bot +98R⭐⭐ + SMC +37R + Ichimoku +15R — 3 winner แท้ (ตัด Divergence −98R ออก)' },
-    aud_meanrev:  { name:'Aussie Power',   icon:'🇦🇺', agents:['utbot','smc','rsi'],          desc:'AUD power: UT-Bot +98R⭐⭐ + SMC +37R + RSI +4R — แทน Divergence ที่ขาดทุนหนัก' },
+    aud_meanrev:  { name:'Aussie Range',   icon:'🇦🇺', agents:['bollinger','smc','rsi'],      desc:'AUD เล่นกรอบ/สวนตัว: Bollinger +32R (ranging +50R⭐) + SMC +13R + RSI — เหมาะตลาดออกข้าง (แทน utbot/ichimoku ที่เป็น trend-follower ไล่ราคาในกรอบแล้วโดนสวน)' },
     eur_trend:    { name:'Euro Trend',     icon:'🇪🇺', agents:['utbot','rsi','sweep'],         desc:'EUR: UT-Bot +62R⭐ + RSI +25R + Sweep (กลางๆ) — สองตัวแรงสุดของ EUR (ตัด Divergence −62R)' },
     eur_structure:{ name:'Euro Momentum',  icon:'🇪🇺', agents:['utbot','rsi','sweep'],          desc:'EUR โมเมนตัม: UT-Bot +62R⭐ + RSI +25R + Sweep — winner ของ EUR (เลิกใช้ MTF/Divergence ที่ลบ)' },
     // ── BlackGlacier: elite gold specialist — 4-factor confluence, max discipline ──
@@ -3825,7 +3825,7 @@ const Company = {
   //   EA-local trades get credited to an employee whose combo the EA isn't running.
   //   BlackGlacier (emp_bg) stays on the gold roster as a competing specialist —
   //   it takes over once its KB record beats Mina's (best proven ≥5, via _eaComboFor).
-  _DEFAULT_EMP: { XAUUSD: 'emp_mr', AUDUSD: 'emp_tr', EURUSD: 'emp_wv' },
+  _DEFAULT_EMP: { XAUUSD: 'emp_mr', AUDUSD: 'emp_rv', EURUSD: 'emp_wv' },  // AUD → Ravi (aud_meanrev=bollinger.smc.rsi) — range-trader beats utbot/ichimoku trend-combo in chop
   // Single source of truth: which combo (and its agent kit) the EA runs for a
   // pair = the best PROVEN employee's combo (≥5 matched trades), else the vetted
   // default. Used by BOTH pushCombosToEA (sends it to the EA) and the live

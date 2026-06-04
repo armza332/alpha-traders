@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.44 · Phase D.10"
+#define EA_VERSION "v1.45 · Phase D.11"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -2020,7 +2020,7 @@ void GetComboKeys(string sym, string &keys[]) {
    if (EAUseFirmSniper) { ArrayResize(keys, 1); keys[0] = "sniper"; return; }
    // defaults (until the web pushes one)
    // Defaults retuned to KB 459k winners (EA-supported agents only):
-   if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="ichimoku"; } // UT-Bot+98 SMC+37 Ichi+15
+   if (b == "AUDUSD")      { ArrayResize(keys, 3); keys[0]="bollinger"; keys[1]="smc";   keys[2]="rsi"; } // Phase D.11: AUD = mean-reversion (Bollinger+SMC+RSI) — เล่นกรอบ; utbot+ichimoku เป็น trend-follower โดนสวนในตลาดออกข้าง
    else if (b == "EURUSD") { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="rsi";       keys[2]="sweep";    } // UT-Bot+62 RSI+25
    else if (b == "XAUUSD") { ArrayResize(keys, 3); keys[0]="elliott"; keys[1]="fvg";     keys[2]="bollinger"; } // Elliott+43 FVG+41 Bollinger+18 (web winners, now in EA)
    else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="rsi";      }
