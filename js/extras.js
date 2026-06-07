@@ -1003,6 +1003,7 @@ const AgentScores = {
         weight:   this.weight(name).toFixed(2),
         trending: regimeStats('trending'),
         ranging:  regimeStats('ranging'),
+        transitional: regimeStats('transitional'),   // surfaced so GEMINI can read it (was collected but unused)
         vol_tr:   regimeStats('volatile_trending'),
         vol_rg:   regimeStats('volatile_ranging'),
         xau:      regimeStats('sym_XAUUSD'),

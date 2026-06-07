@@ -71,7 +71,9 @@ const Gemini = {
     return n ? score / n : 0;
   },
   _regimeBucket(regime) {
-    return ({ trending:'trending', ranging:'ranging',
+    // Maps classifyRegime() output → AgentScores.stats() bucket keys.
+    // (stats() renames volatile_* → vol_tr/vol_rg; transitional now surfaced too.)
+    return ({ trending:'trending', ranging:'ranging', transitional:'transitional',
               volatile_trending:'vol_tr', volatile_ranging:'vol_rg' })[regime] || 'all';
   },
 

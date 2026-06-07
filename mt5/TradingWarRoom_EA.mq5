@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.46 · Phase D.12"
+#define EA_VERSION "v1.47 · Phase D.13"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -64,6 +64,8 @@ input group "=== FILTERS ==="
 input bool    OnlyLondonNY       = true;          // Skip Asia session
 input int     SignalCooldownMin  = 30;            // Wait between signals
 input int     MaxOpenPositions   = 2;             // per symbol
+input double  MinADX             = 18.0;          // 📉 Phase D.13: ตลาดออกข้าง (ADX < นี้) → งดสัญญาณ trend-combo · คอมโบเล่นกรอบ (bollinger/rsi) ยังเทรดได้ · 0 = off
+input int     AdxPeriod          = 14;            // ADX period สำหรับ regime filter
 
 input group "=== RISK MANAGER (Phase 15) ==="
 input bool    UseBreakeven       = true;          // 🛡 Move SL to breakeven once in profit
@@ -149,7 +151,8 @@ string        gCombo[3];             // Phase C: per-pair combo override [0]=XAU
 bool          gNewsBlocked = false;  // Phase C.3: high-impact news window now (from bridge)
 string        gNewsRisk    = "LOW";  // Phase C.3: LOW/MED/HIGH (from bridge, for dashboard)
 datetime      gNewsTime    = 0;      // Phase C.3: when news state last refreshed (freshness guard)
-int           rsiHandle[MAX_SYMS], bbHandle[MAX_SYMS], atrHandle[MAX_SYMS];
+int           rsiHandle[MAX_SYMS], bbHandle[MAX_SYMS], atrHandle[MAX_SYMS], adxHandle[MAX_SYMS];
+datetime      lastBarSym[MAX_SYMS];   // Phase D.13: per-symbol new-bar trigger (was Symbol1-only)
 string        symbols[MAX_SYMS];
 int           nActiveSyms = 0;       // dynamically counted in OnInit
 bool          runEnabled[MAX_SYMS];  // Phase 12.9: runtime per-symbol toggle (web can flip)
@@ -224,10 +227,13 @@ void RebuildIndicators() {
       if (rsiHandle[i] != INVALID_HANDLE) IndicatorRelease(rsiHandle[i]);
       if (bbHandle[i]  != INVALID_HANDLE) IndicatorRelease(bbHandle[i]);
       if (atrHandle[i] != INVALID_HANDLE) IndicatorRelease(atrHandle[i]);
+      if (adxHandle[i] != INVALID_HANDLE) IndicatorRelease(adxHandle[i]);
       rsiHandle[i] = iRSI(symbols[i], effTF, RSIPeriod, PRICE_CLOSE);
       bbHandle[i]  = iBands(symbols[i], effTF, BBPeriod, 0, BBDeviation, PRICE_CLOSE);
       atrHandle[i] = iATR(symbols[i], effTF, ATRPeriod);
+      adxHandle[i] = iADX(symbols[i], effTF, AdxPeriod);
       lastSignalTime[i] = 0;   // fresh cooldown on the new timeframe
+      lastBarSym[i]     = 0;    // re-arm per-symbol new-bar trigger
    }
    PrintFormat("🔧 Indicators rebuilt @ TF %s | Risk %.1f%% | conf≥%.0f | Pullback %.2f",
                EnumToString(effTF), effRisk, effMinConf, effPullbackZone);
@@ -285,15 +291,18 @@ int OnInit() {
       rsiHandle[i] = iRSI(symbols[i], effTF, RSIPeriod, PRICE_CLOSE);
       bbHandle[i]  = iBands(symbols[i], effTF, BBPeriod, 0, BBDeviation, PRICE_CLOSE);
       atrHandle[i] = iATR(symbols[i], effTF, ATRPeriod);
+      adxHandle[i] = iADX(symbols[i], effTF, AdxPeriod);   // Phase D.13: regime filter
 
       if (rsiHandle[i] == INVALID_HANDLE ||
           bbHandle[i]  == INVALID_HANDLE ||
-          atrHandle[i] == INVALID_HANDLE) {
+          atrHandle[i] == INVALID_HANDLE ||
+          adxHandle[i] == INVALID_HANDLE) {
          Print("❌ Failed to init indicators for ", symbols[i]);
          return INIT_FAILED;
       }
 
       lastSignalTime[i] = 0;
+      lastBarSym[i]     = 0;   // Phase D.13: per-symbol new-bar trigger
    }
 
    PrintFormat("✅ Trading War Room EA initialized [%s MODE]  🏷 %s", ScalpMode ? "⚡ SCALP M1" : "🌊 SWING", EA_VERSION);
@@ -332,6 +341,7 @@ void OnDeinit(const int reason) {
       if (rsiHandle[i] != INVALID_HANDLE) IndicatorRelease(rsiHandle[i]);
       if (bbHandle[i]  != INVALID_HANDLE) IndicatorRelease(bbHandle[i]);
       if (atrHandle[i] != INVALID_HANDLE) IndicatorRelease(atrHandle[i]);
+      if (adxHandle[i] != INVALID_HANDLE) IndicatorRelease(adxHandle[i]);
    }
    RemoveDashboard();      // Phase 12.5: cleanup OBJ_LABEL items
    Comment("");            // clear any leftover Comment text
@@ -349,22 +359,21 @@ void OnTick() {
    PushToWeb();
    PollWebCommands();    // Phase 12.4: check for remote commands
 
-   // Only run signal check on new bar to save CPU
-   static datetime lastBar = 0;
-   datetime curBar = iTime(Symbol1, effTF, 0);
-   if (curBar == lastBar) {
-      ManagePositions();
-      return;
-   }
-   lastBar = curBar;
+   // Phase D.13: manage open positions EVERY tick (responsive BE / trail / partial)
+   ManagePositions();
 
-   // Update today's stats (after each new bar)
+   // Phase D.13: per-symbol NEW-BAR trigger. Old code gated everything on Symbol1's
+   // bar → XAU/EUR were starved when AUD (Symbol1) had no new bar. Now each symbol
+   // is evaluated when ITS OWN bar closes.
+   bool anyNewBar = false;
+   for (int i = 0; i < nActiveSyms; i++)
+      if (iTime(symbols[i], effTF, 0) != lastBarSym[i]) { anyNewBar = true; break; }
+   if (!anyNewBar) return;   // no symbol formed a new bar this tick
+
+   // Once-per-new-bar housekeeping + daily circuit breaker (entries only; mgmt ran above)
    UpdateTodayStats();
-
-   // Phase D: daily-loss / losing-streak circuit breaker. Manage open trades
-   // (BE/trailing still run) but open NO new entries until the day resets
-   // (or, if ResumeNextDay=false, until the trader clicks RESUME).
-   if (DailyGuardActive()) {
+   bool halted = DailyGuardActive();
+   if (halted) {
       static datetime lastHaltLog = 0;
       if (TimeCurrent() - lastHaltLog > 300) {
          PrintFormat("🛑 DAILY GUARD — entries halted (today P/L $%.2f, %d losses in a row). Resume: %s",
@@ -372,21 +381,18 @@ void OnTick() {
          lastHaltLog = TimeCurrent();
       }
       if (!ResumeNextDay) eaPaused = true;   // latch — needs manual RESUME
-      ManagePositions();
-      return;
    }
 
-   // Phase 12.4: skip trading if paused remotely
-   if (eaPaused) return;
-
-   // Session filter
-   if (OnlyLondonNY && !IsLondonNYSession()) return;
-
-   // Trade check per symbol
+   // Per-symbol signal eval — only on that symbol's own new bar
    for (int i = 0; i < nActiveSyms; i++) {
-      if (!runEnabled[i]) continue;   // Phase 12.9: skip if disabled from web
-      CheckSignal(symbols[i], i);                          // updates dashboard scan
-      if (gSignalMode == 1 || gSignalMode == 2) EvaluateLocalCombo(symbols[i], i);  // EA/BOTH: fire local combo
+      datetime cb = iTime(symbols[i], effTF, 0);
+      if (cb == lastBarSym[i]) continue;     // this symbol has no new bar yet
+      lastBarSym[i] = cb;
+      CheckSignal(symbols[i], i);            // dashboard scan — always on new bar
+      if (halted || eaPaused) continue;      // entries blocked (scan still updated)
+      if (!runEnabled[i]) continue;          // disabled from web
+      if (OnlyLondonNY && !IsLondonNYSession()) continue;   // session filter
+      if (gSignalMode == 1 || gSignalMode == 2) EvaluateLocalCombo(symbols[i], i);
    }
 }
 
@@ -1563,15 +1569,26 @@ AgentOut AgentUTBot(string sym, ENUM_TIMEFRAMES tf) {
       else                            stop = c + nLoss;
    }
    double last = closes[n-1], prev = closes[n-2];
-   bool crossUp = (prev <= stop && last > stop);
+   bool crossUp   = (prev <= stop && last > stop);
    bool crossDown = (prev >= stop && last < stop);
    bool above = (last > stop);
-   int score = crossUp ? 30 : crossDown ? -30 : above ? 12 : -12;
-   // Phase A.1: always directional from the trend bias (above=buy / below=sell);
-   // conf is high on a FRESH cross (~89) and lower while just holding (~65),
-   // so EvaluateLocalCombo can fire on a strong cross alone OR trend+divergence.
-   o.dir  = above ? 1 : -1;
-   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.3);
+   double sep = MathAbs(last - stop);   // distance from the trailing stop
+   // Phase D.13: UT-Bot now has a NEUTRAL zone. It used to ALWAYS vote a direction
+   // (above=buy / below=sell), which forced a trend bias even in chop and made it
+   // agree with other trend agents at range turns. Now:
+   //   • fresh cross         → strong directional vote (~89 conf)
+   //   • holding, clear of stop (sep ≥ 0.5×nLoss) → trend-hold vote (~66 conf)
+   //   • hugging the stop (sep < 0.5×nLoss) → ABSTAIN (dir 0) — too choppy to call
+   if (crossUp || crossDown) {
+      o.dir  = crossUp ? 1 : -1;
+      o.conf = MathMin(95.0, 50 + 30 * 1.3);
+   } else if (sep >= nLoss * 0.5) {
+      o.dir  = above ? 1 : -1;
+      o.conf = MathMin(95.0, 50 + 12 * 1.3);
+   } else {
+      o.dir  = 0;
+      o.conf = 30;
+   }
    return o;
 }
 
@@ -2026,6 +2043,16 @@ void GetComboKeys(string sym, string &keys[]) {
    else                    { ArrayResize(keys, 3); keys[0]="utbot"; keys[1]="smc";       keys[2]="rsi";      }
 }
 
+// Phase D.13: classify an agent for the regime filter.
+// TREND-followers lose in ranges (buy tops / sell bottoms); RANGE/mean-reversion
+// agents thrive there. Used to decide whether a signal is trend-led or range-led.
+bool IsTrendAgent(string k) {
+   return (k=="utbot" || k=="ichimoku" || k=="macd" || k=="mtf" || k=="breakout" || k=="elliott");
+}
+bool IsRangeAgent(string k) {
+   return (k=="bollinger" || k=="rsi" || k=="fib");
+}
+
 // EA-local combo (Phase B): aggregate the symbol's combo agents. Fire only on
 // CONFLUENCE — ≥2 agents agree on direction AND none oppose — avg conf ≥ LocalMinConf.
 // Commander (web) still controls via runEnabled[] / eaPaused / risk / cooldown.
@@ -2037,10 +2064,13 @@ void EvaluateLocalCombo(string sym, int idx) {
 
    string keys[]; GetComboKeys(sym, keys);
    int votesBuy = 0, votesSell = 0; double confSum = 0; string detail = "";
+   int trendBuy = 0, trendSell = 0, rangeBuy = 0, rangeSell = 0;   // Phase D.13: regime classification of voters
    for (int k = 0; k < ArraySize(keys); k++) {
       AgentOut a = AgentByKey(keys[k], sym, effTF, idx);
       if (a.dir == 0) continue;
-      if (a.dir > 0) votesBuy++; else votesSell++;
+      bool tr = IsTrendAgent(keys[k]), rg = IsRangeAgent(keys[k]);
+      if (a.dir > 0) { votesBuy++;  if (tr) trendBuy++;  if (rg) rangeBuy++; }
+      else           { votesSell++; if (tr) trendSell++; if (rg) rangeSell++; }
       confSum += a.conf;
       detail += keys[k] + (a.dir > 0 ? "+ " : "- ");
    }
@@ -2055,6 +2085,23 @@ void EvaluateLocalCombo(string sym, int idx) {
    if (conf < effMinConf) return;   // Phase D.9: quality gate per preset
 
    bool isBuy = (net > 0);
+
+   // Phase D.13: REGIME FILTER — in a range (ADX < MinADX), skip TREND-led signals
+   // (utbot/ichimoku/macd/elliott…). Mean-reversion-led signals (bollinger/rsi/fib)
+   // are allowed — they thrive in ranges. This is what stops AUD/EUR trend-combos
+   // from buying tops / selling bottoms in chop.
+   if (MinADX > 0) {
+      double adxB[]; ArraySetAsSeries(adxB, true);
+      if (adxHandle[idx] != INVALID_HANDLE && CopyBuffer(adxHandle[idx], 0, 0, 1, adxB) == 1) {
+         double adx = adxB[0];
+         int trendVotes = isBuy ? trendBuy : trendSell;
+         int rangeVotes = isBuy ? rangeBuy : rangeSell;
+         if (adx < MinADX && trendVotes > rangeVotes) {
+            PrintFormat("📉 %s SKIP — RANGE (ADX %.1f < %.1f) งดสัญญาณ trend-combo [%s]", sym, adx, MinADX, detail);
+            return;
+         }
+      }
+   }
 
    // Phase C.9: pullback entry — don't chase the extreme. In a downtrend wait for a
    // bounce UP before selling (price in upper part of recent range); in an uptrend
