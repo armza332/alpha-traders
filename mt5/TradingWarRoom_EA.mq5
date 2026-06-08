@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.47 · Phase D.13"
+#define EA_VERSION "v1.48 · Phase D.14"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -701,12 +701,16 @@ void ManagePositions() {
       double ask  = SymbolInfoDouble(sym, SYMBOL_ASK);
       int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
 
-      // Original R distance. IMPORTANT: infer from the TP (which never moves),
-      // NOT the current SL — once SL trails to breakeven, open-curSL shrinks and
-      // would make profitR explode, breaking breakeven/trailing. TP = entry ± R×effRR.
+      // Phase D.14: R distance is LOCKED at entry (TWR_R_<ticket>, set in
+      // CaptureOpenContext = |entry − original SL|). This is the correct, immutable
+      // risk reference — unaffected by dragging TP or switching preset (effRR) mid-
+      // trade. Fallback for legacy trades with no stored R: infer from TP (which the
+      // EA normally never moves), then current SL as a last resort.
       double price = (type == POSITION_TYPE_BUY) ? bid : ask;
-      double rDist = (curTP != 0 && effRR > 0) ? MathAbs(open - curTP) / effRR
-                                               : MathAbs(open - curSL);
+      string rKey  = "TWR_R_" + IntegerToString((long)posInfo.Ticket());
+      double rDist = GlobalVariableCheck(rKey) ? GlobalVariableGet(rKey)
+                   : (curTP != 0 && effRR > 0) ? MathAbs(open - curTP) / effRR
+                   : MathAbs(open - curSL);
       if (rDist <= 0) continue;
 
       // Profit in R-multiples
@@ -2160,6 +2164,7 @@ void OnTradeTransaction(const MqlTradeTransaction& trans,
       SendTradeRecord(trans.deal);
       GlobalVariableDel("TWR_PART_" + IntegerToString((long)pid));
       GlobalVariableDel("TWR_RUN_"  + IntegerToString((long)pid));   // Phase D.4
+      GlobalVariableDel("TWR_R_"    + IntegerToString((long)pid));   // Phase D.14: locked R
    }
 }
 
@@ -2197,6 +2202,13 @@ void CaptureOpenContext(ulong dealTicket) {
    if (PositionSelectByTicket(posId)) { sl = PositionGetDouble(POSITION_SL); cmt = PositionGetString(POSITION_COMMENT); }
    string _pp[]; string agentTag = "ea";
    if (StringSplit(cmt, '-', _pp) >= 3 && StringLen(_pp[2]) > 0) agentTag = _pp[2];
+
+   // Phase D.14: LOCK the original R distance (entry → original SL) at OPEN time.
+   // ManagePositions reads this as the single source of truth for "1R", so the
+   // trade's risk can NEVER shift afterwards — immune to the user dragging TP, to
+   // TP=0, and to the preset (effRR) changing while the trade is still open.
+   // GlobalVariable persists across EA restart/recompile (like TWR_RUN_).
+   if (sl > 0) GlobalVariableSet("TWR_R_" + IntegerToString((long)posId), MathAbs(entry - sl));
 
    // Append to openCtx
    ArrayResize(openCtx, openCtxCount + 1);
