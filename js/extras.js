@@ -1576,7 +1576,10 @@ const AgentScores = {
 
     return `
       ${progressHTML}
-      ${this.renderRecommend()}
+      <div style="margin-top:12px;padding:8px 10px;border:1px solid var(--purple);border-radius:6px;background:rgba(120,80,255,.06);font-size:8px;color:#c9b6ff">
+        🧠 <b>กลยุทธ์จัดการอัตโนมัติโดย GEMINI</b> — เลือก agent/combo ที่ดีที่สุดให้เอง (ไม่ต้องกด Smart Apply เองแล้ว) ·
+        ดูได้ที่ปุ่ม <b>🎛 CONTROL → ดูรายละเอียดทีม</b>
+      </div>
       <div style="margin-top:14px;font-size:8px;color:var(--gold);border-bottom:1px solid var(--border);padding-bottom:4px">🧠 KNOWLEDGE BASE — Regime-Aware Learning</div>
       <div style="font-size:6px;color:var(--gray);padding:4px 0">
         Live trades: <b style="color:var(--green)">${meta.liveTrades || 0}</b> |
@@ -4419,32 +4422,26 @@ const Company = {
       ${autoPilot ? `<div style="padding:8px 12px;background:rgba(0,255,65,0.1);border:1px solid var(--green);margin-bottom:10px;font-size:9px;color:var(--green)">
         🤖 <b>AUTO PILOT ON</b> — ทีมตัดสินใจเอง 100% · Grade A+ → EA ทันที
       </div>` : ''}
-      ${typeof Portfolios !== 'undefined' ? Portfolios.render() : ''}
-      <div style="font-size:11px;color:var(--gold);margin-bottom:6px;font-weight:bold">📈 TRADE DESK — 6 Traders (2 ต่อคู่ · คนละเทคนิค)</div>
-      <div style="margin-bottom:12px">
-        ${this.renderTraders()}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="padding:10px;border:1px solid var(--purple);background:rgba(120,80,255,0.05);border-radius:4px">
-          <div style="font-size:10px;color:var(--purple);margin-bottom:6px;font-weight:bold">🧠 Strategy Officer</div>
-          ${this._strategyReport()}
-        </div>
-        <div style="padding:10px;border:1px solid var(--green);background:rgba(0,255,65,0.05);border-radius:4px">
-          <div style="font-size:10px;color:var(--green);margin-bottom:6px;font-weight:bold">📊 Accountant</div>
+      <!-- Phase F.3: leaned — one clean column, plain-language headers. Removed the
+           redundant TRADE DESK (same as employee board) + advanced performance panel. -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="padding:10px;border:1px solid var(--green);background:rgba(0,255,65,0.05);border-radius:6px">
+          <div style="font-size:11px;color:var(--green);margin-bottom:6px;font-weight:bold">💰 เงิน / พอร์ต (Accountant)</div>
           ${this._accountantReport()}
         </div>
-        <div style="padding:10px;border:1px solid var(--orange);background:rgba(255,140,0,0.05);border-radius:4px">
-          <div style="font-size:10px;color:var(--orange);margin-bottom:6px;font-weight:bold">💻 Dev Monitor</div>
+        <div style="padding:10px;border:1px solid var(--purple);background:rgba(120,80,255,0.05);border-radius:6px">
+          <div style="font-size:11px;color:var(--purple);margin-bottom:6px;font-weight:bold">🏆 ผลงานทีม (Strategy Officer)</div>
+          ${this._strategyReport()}
+        </div>
+        <div style="padding:10px;border:1px solid var(--orange);background:rgba(255,140,0,0.05);border-radius:6px">
+          <div style="font-size:11px;color:var(--orange);margin-bottom:6px;font-weight:bold">🩺 สุขภาพระบบ (Dev Monitor)</div>
           ${this._devMonitor()}
         </div>
-        <div style="padding:10px;border:1px solid #a78bfa;background:rgba(167,139,250,0.08);border-radius:4px">
-          <div style="font-size:10px;color:#a78bfa;margin-bottom:6px;font-weight:bold">🤖 Claude — Board Advisor</div>
+        <div style="padding:10px;border:1px solid #a78bfa;background:rgba(167,139,250,0.08);border-radius:6px">
+          <div style="font-size:11px;color:#a78bfa;margin-bottom:6px;font-weight:bold">🤖 ที่ปรึกษา (Claude)</div>
           ${this._claudeAdvisory()}
         </div>
       </div>
-
-      <!-- Phase 16: Performance Analytics (toggleable) -->
-      ${this._performancePanel()}
     `;
   },
 };
