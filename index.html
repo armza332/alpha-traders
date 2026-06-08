@@ -97,6 +97,7 @@
   </div>
 
   <div class="header-right">
+    <button class="hdr-btn" onclick="Modal.open('control')" title="ห้องควบคุมหลัก — ใช้อันนี้พอ" style="background:var(--teal);color:#022;font-weight:bold">🎛 CONTROL</button>
     <button class="hdr-btn" onclick="Modal.open('backtest')" data-i18n="btn.backtest" data-i18n-title="bt.title">🔬 BACKTEST</button>
     <button class="hdr-btn" onclick="Modal.open('journal')" data-i18n="btn.journal">📓 JOURNAL</button>
     <button class="hdr-btn" onclick="openAgentHQ()" title="Agent HQ — Live Pixel Office">🏢 OFFICE</button>
@@ -609,6 +610,32 @@
   </div>
 </div>
 
+<!-- ═══════════════════ CONTROL (Cockpit — one place for daily use) ═══════════════════ -->
+<div id="modal-control" class="modal" style="display:none">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">🎛 CONTROL — ห้องควบคุมหลัก</div>
+      <button class="modal-close" onclick="Modal.close()">✕</button>
+    </div>
+    <div class="modal-body" id="control-body">
+      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ GEMINI COACH ═══════════════════ -->
+<div id="modal-gemini" class="modal" style="display:none">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">🧠 GEMINI — หัวหน้าโค้ช (พัฒนาทีมอัตโนมัติ)</div>
+      <button class="modal-close" onclick="Modal.close()">✕</button>
+    </div>
+    <div class="modal-body" id="gemini-body">
+      <div style="padding:20px;text-align:center;font-size:7px;color:var(--gray)">Loading...</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ FOOTER NOTE ═══════════════════ -->
 <div style="text-align:center;font-size:6px;color:var(--gray);padding:10px;border-top:1px solid var(--border)">
   ⚠️ For educational &amp; research purposes only. Not financial advice. Always manage your own risk. |
@@ -616,17 +643,17 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=80"></script>
-<script src="js/market.js?v=80"></script>
-<script src="js/agents.js?v=80"></script>
-<script src="js/ui.js?v=80"></script>
-<script src="js/extras.js?v=80"></script>
-<script src="js/ai-bridge.js?v=80"></script>
-<script src="js/gemini.js?v=80"></script>
-<script src="js/portfolio.js?v=80"></script>
-<script src="js/sprite-slicer.js?v=80"></script>
-<script src="js/backtest.js?v=80"></script>
-<script src="js/app.js?v=80"></script>
+<script src="js/i18n.js?v=81"></script>
+<script src="js/market.js?v=81"></script>
+<script src="js/agents.js?v=81"></script>
+<script src="js/ui.js?v=81"></script>
+<script src="js/extras.js?v=81"></script>
+<script src="js/ai-bridge.js?v=81"></script>
+<script src="js/gemini.js?v=81"></script>
+<script src="js/portfolio.js?v=81"></script>
+<script src="js/sprite-slicer.js?v=81"></script>
+<script src="js/backtest.js?v=81"></script>
+<script src="js/app.js?v=81"></script>
 
 <!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
 <div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
@@ -639,7 +666,7 @@
   function openAgentHQ() {
     const ov = document.getElementById('agenthq-overlay');
     const fr = document.getElementById('agenthq-frame');
-    if (!fr.src) fr.src = 'agent-hq.html?v=80';   // load once; data syncs live from parent
+    if (!fr.src) fr.src = 'agent-hq.html?v=81';   // load once; data syncs live from parent
     ov.style.display = 'block';
   }
   function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }

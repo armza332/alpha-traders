@@ -491,6 +491,106 @@ const Telegram = {
 /* ═══════════════════════════════════════════════════════
    MODAL MANAGER
    ═══════════════════════════════════════════════════════ */
+// ═══════════════════ COCKPIT — one lean control room (Phase F) ═══════════════════
+// Everything you touch day-to-day in ONE place. The rest of the app runs automatically.
+const Cockpit = {
+  _t: null,
+  _m(n){ n=parseFloat(n)||0; return (n<0?'-$':'$')+Math.abs(n).toFixed(2); },
+  render() {
+    const el = document.getElementById('control-body'); if (!el) return;
+    const s  = (typeof BotBridge !== 'undefined') ? BotBridge.lastStatus : null;
+    const cur = (typeof Settings !== 'undefined') ? Settings.get('riskPreset', 'auto') : 'auto';
+    const paused = s && (s.paused === true || s.paused === 'true');
+    const online = s && s.online;
+    const pnl = s ? (parseFloat(s.todayPnL)||0) : 0;
+    const guard = (typeof Gemini !== 'undefined' && Gemini._guardState) ? Gemini._guardState : '🧠 GEMINI พร้อมทำงาน (จะเริ่มโค้ชเมื่อมีไม้จริงพอ)';
+
+    const presetBtn = (k,label,sub,col) => {
+      const on = cur===k;
+      return `<button onclick="Company.setPreset('${k}');Cockpit.render()" style="flex:1;min-width:70px;padding:10px 6px;border:2px solid ${on?col:'var(--border)'};border-radius:10px;background:${on?col+'22':'transparent'};color:${on?col:'#9aa'};font-weight:${on?'bold':'normal'};cursor:pointer;line-height:1.3">
+        ${label}${on?' ●':''}<br><span style="font-size:7px;opacity:.8">${sub}</span></button>`;
+    };
+    const cmdBtn = (cmd,label,bg,confirm) =>
+      `<button onclick="BotBridge.sendCommand('${cmd}'${confirm?",{}":",{silent:true}"})" style="flex:1;padding:11px;border:none;border-radius:10px;background:${bg};color:#fff;font-weight:bold;cursor:pointer">${label}</button>`;
+
+    const pos = s && s.positions ? s.positions : [];
+    const posHtml = pos.length ? pos.map(p=>{
+      const pf=parseFloat(p.profit)||0, buy=(p.side==='buy');
+      return `<div style="display:flex;justify-content:space-between;padding:6px 2px;border-bottom:1px solid var(--border);font-size:9px">
+        <span><b style="color:${buy?'var(--green)':'var(--red)'}">${buy?'▲':'▼'}</b> ${(p.sym||'').replace(/m$/,'')} <span style="color:var(--gray)">${parseFloat(p.vol).toFixed(2)}</span></span>
+        <b style="color:${pf>=0?'var(--green)':'var(--red)'}">${this._m(pf)}</b></div>`;
+    }).join('') : `<div style="color:var(--gray);font-size:9px;text-align:center;padding:8px">— ไม่มีไม้เปิด —</div>`;
+
+    el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <!-- account -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:rgba(0,255,200,.04)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-size:8px;color:var(--gray)">BALANCE</div><div style="font-size:22px;font-weight:800">${s?this._m(s.balance):'—'}</div></div>
+          <div style="text-align:right">
+            <div style="font-size:8px;color:var(--gray)">P/L วันนี้</div>
+            <div style="font-size:15px;font-weight:700;color:${pnl>0?'var(--green)':pnl<0?'var(--red)':'var(--gray)'}">${pnl>=0?'+':''}${this._m(pnl)}</div>
+            <div style="font-size:8px"><span style="color:var(--green)">${s?s.todayWins:0}W</span> · <span style="color:var(--red)">${s?s.todayLosses:0}L</span></div>
+          </div>
+        </div>
+        <div style="margin-top:6px;font-size:8px">${online?'<span style="color:var(--green)">🟢 EA ONLINE</span>':'<span style="color:var(--red)">🔴 EA OFFLINE — ตรวจ Bot Bridge URL ใน SETTINGS</span>'} ${paused?'<span style="color:var(--orange)"> · ⏸ PAUSED</span>':''}</div>
+      </div>
+
+      <!-- 1. risk preset -->
+      <div>
+        <div style="font-size:9px;color:var(--gold);font-weight:bold;margin-bottom:5px">① ระดับความเสี่ยง (กดเปลี่ยนได้เลย)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${presetBtn('low','🟢 น้อย','H1·1%','#36e08f')}
+          ${presetBtn('mid','🟡 กลาง','M15·1.5%','#ffd24d')}
+          ${presetBtn('high','🔴 มาก','M5·2%','#ff5b6b')}
+          ${presetBtn('auto','⚙ AUTO','ตาม EA','#00ffc8')}
+        </div>
+      </div>
+
+      <!-- 2. controls -->
+      <div>
+        <div style="font-size:9px;color:var(--gold);font-weight:bold;margin-bottom:5px">② ควบคุมบอท</div>
+        <div style="display:flex;gap:6px">
+          ${paused ? cmdBtn('resume','▶️ Resume','var(--green)') : cmdBtn('pause','⏸ Pause','var(--orange)',true)}
+          ${cmdBtn('close_all','🔴 ปิดทุกไม้','var(--red)',true)}
+        </div>
+      </div>
+
+      <!-- 3. positions -->
+      <div>
+        <div style="font-size:9px;color:var(--gold);font-weight:bold;margin-bottom:3px">③ ไม้ที่เปิดอยู่ (${pos.length})</div>
+        <div style="border:1px solid var(--border);border-radius:8px;padding:4px 8px">${posHtml}</div>
+      </div>
+
+      <!-- 4. brain status -->
+      <div style="border:1px solid var(--purple);border-radius:8px;padding:8px;background:rgba(120,80,255,.06)">
+        <div style="font-size:9px;color:var(--purple);font-weight:bold">🧠 สมอง GEMINI (พัฒนาทีมให้อัตโนมัติ)</div>
+        <div style="font-size:8px;color:#c9b6ff;margin:3px 0">${guard}</div>
+        <button onclick="Modal.open('gemini')" style="font-size:8px;padding:4px 10px;border:1px solid var(--purple);border-radius:6px;background:transparent;color:var(--purple);cursor:pointer">ดูรายละเอียดทีม →</button>
+      </div>
+
+      <!-- shortcuts -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px">
+        <button onclick="Modal.open('journal')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">📓 ประวัติ/KB</button>
+        <button onclick="openAgentHQ()" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">🏢 ออฟฟิศ</button>
+        <button onclick="Modal.open('backtest')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">🔬 Backtest</button>
+        <button onclick="Modal.open('settings')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">⚙ ตั้งค่า</button>
+      </div>
+
+      <div style="font-size:7px;color:var(--gray);text-align:center;border-top:1px solid var(--border);padding-top:6px">
+        ✅ ตั้ง <b>ระดับความเสี่ยง</b> แล้วที่เหลือ <b>ทำงานอัตโนมัติ</b> — เลือก agent / combo / เทรด / เรียนรู้ GEMINI จัดการเอง · คุณไม่ต้องกดอะไรอีก
+      </div>
+    </div>`;
+
+    if (this._t) clearInterval(this._t);
+    this._t = setInterval(() => {
+      const m = document.getElementById('modal-control');
+      if (!m || m.style.display === 'none') { clearInterval(this._t); this._t = null; return; }
+      this.render();
+    }, 8000);
+  }
+};
+
 const Modal = {
   open(name) {
     document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
@@ -515,6 +615,13 @@ const Modal = {
     if (name === 'office' && typeof Office !== 'undefined') {
       if (typeof BotBridge !== 'undefined') { BotBridge.tick(); if (!BotBridge.timer) BotBridge.start(); }
       Office.refresh();
+    }
+    if (name === 'control' && typeof Cockpit !== 'undefined') {
+      if (typeof BotBridge !== 'undefined') { BotBridge.tick(); if (!BotBridge.timer) BotBridge.start(); }
+      Cockpit.render();
+    }
+    if (name === 'gemini' && typeof Gemini !== 'undefined') {
+      const g = document.getElementById('gemini-body'); if (g) g.innerHTML = Gemini.render();
     }
   },
   close() {
@@ -4649,5 +4756,6 @@ window.SignalGrade  = SignalGrade;
 window.Settings     = Settings;
 window.Telegram     = Telegram;
 window.Modal        = Modal;
+window.Cockpit      = Cockpit;
 window.Journal      = Journal;
 window.AgentScores  = AgentScores;
