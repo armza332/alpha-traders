@@ -29,7 +29,11 @@
     .hub-col { max-height:calc(100vh - 215px); overflow-y:auto; overflow-x:hidden; min-width:0; }
     .hub-col.collapsed { display:none; }
     .hub-col::-webkit-scrollbar { width:7px; } .hub-col::-webkit-scrollbar-thumb { background:#26324d; border-radius:4px; }
-    .hub-center { position:sticky; top:8px; min-width:0; }
+    /* Phase F.2: pin each region to its grid track so hiding a side column with
+       display:none does NOT push the center office into the 0-width first track. */
+    #hub-left   { grid-column:1; }
+    .hub-center { grid-column:2; position:sticky; top:8px; min-width:0; }
+    #hub-right  { grid-column:3; }
     .hub-office-head { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border);
       border-bottom:none; border-radius:8px 8px 0 0; background:linear-gradient(90deg,rgba(45,226,230,.12),transparent); }
     #hub-office-frame { width:100%; height:calc(100vh - 200px); min-height:580px; border:1px solid var(--border);
@@ -643,17 +647,17 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=82"></script>
-<script src="js/market.js?v=82"></script>
-<script src="js/agents.js?v=82"></script>
-<script src="js/ui.js?v=82"></script>
-<script src="js/extras.js?v=82"></script>
-<script src="js/ai-bridge.js?v=82"></script>
-<script src="js/gemini.js?v=82"></script>
-<script src="js/portfolio.js?v=82"></script>
-<script src="js/sprite-slicer.js?v=82"></script>
-<script src="js/backtest.js?v=82"></script>
-<script src="js/app.js?v=82"></script>
+<script src="js/i18n.js?v=83"></script>
+<script src="js/market.js?v=83"></script>
+<script src="js/agents.js?v=83"></script>
+<script src="js/ui.js?v=83"></script>
+<script src="js/extras.js?v=83"></script>
+<script src="js/ai-bridge.js?v=83"></script>
+<script src="js/gemini.js?v=83"></script>
+<script src="js/portfolio.js?v=83"></script>
+<script src="js/sprite-slicer.js?v=83"></script>
+<script src="js/backtest.js?v=83"></script>
+<script src="js/app.js?v=83"></script>
 
 <!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
 <div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
@@ -666,7 +670,7 @@
   function openAgentHQ() {
     const ov = document.getElementById('agenthq-overlay');
     const fr = document.getElementById('agenthq-frame');
-    if (!fr.src) fr.src = 'agent-hq.html?v=82';   // load once; data syncs live from parent
+    if (!fr.src) fr.src = 'agent-hq.html?v=83';   // load once; data syncs live from parent
     ov.style.display = 'block';
   }
   function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }
