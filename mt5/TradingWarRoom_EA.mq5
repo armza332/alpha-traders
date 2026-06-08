@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.49 · Phase D.15"
+#define EA_VERSION "v1.50 · Phase D.16"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -66,6 +66,8 @@ input int     SignalCooldownMin  = 30;            // Wait between signals
 input int     MaxOpenPositions   = 2;             // per symbol
 input double  MinADX             = 18.0;          // 📉 Phase D.13: ตลาดออกข้าง (ADX < นี้) → งดสัญญาณ trend-combo · คอมโบเล่นกรอบ (bollinger/rsi) ยังเทรดได้ · 0 = off
 input int     AdxPeriod          = 14;            // ADX period สำหรับ regime filter
+input double  RsiBuyMax          = 72.0;          // 🚫 Phase D.16: งด BUY เมื่อ RSI ≥ นี้ (overbought = ไม่ไล่ยอด) · ใช้ทุกคู่ · 0 = off
+input double  RsiSellMin         = 28.0;          // 🚫 Phase D.16: งด SELL เมื่อ RSI ≤ นี้ (oversold = ไม่ขายก้น) · ใช้ทุกคู่ · 0 = off
 
 input group "=== RISK MANAGER (Phase 15) ==="
 input bool    UseBreakeven       = true;          // 🛡 Move SL to breakeven once in profit
@@ -2117,6 +2119,18 @@ void EvaluateLocalCombo(string sym, int idx) {
             PrintFormat("📉 %s SKIP — RANGE (ADX %.1f < %.1f) งดสัญญาณ trend-combo [%s]", sym, adx, MinADX, detail);
             return;
          }
+      }
+   }
+
+   // Phase D.16: ANTI-CHASE — universal overbought/oversold gate (ALL symbols/combos/
+   // owners, not tied to any one trader). Stops "buying the top / selling the bottom"
+   // late in a move — independent of the range-window pullback filter.
+   if (RsiBuyMax > 0 || RsiSellMin > 0) {
+      double rGate[]; ArraySetAsSeries(rGate, true);
+      if (CopyBuffer(rsiHandle[idx], 0, 0, 1, rGate) == 1) {
+         double rNow = rGate[0];
+         if (isBuy  && RsiBuyMax  > 0 && rNow >= RsiBuyMax)  { PrintFormat("🚫 %s BUY SKIP — overbought RSI %.1f ≥ %.1f (ไม่ไล่ยอด)", sym, rNow, RsiBuyMax); return; }
+         if (!isBuy && RsiSellMin > 0 && rNow <= RsiSellMin) { PrintFormat("🚫 %s SELL SKIP — oversold RSI %.1f ≤ %.1f (ไม่ขายก้น)", sym, rNow, RsiSellMin); return; }
       }
    }
 
