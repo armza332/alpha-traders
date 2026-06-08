@@ -108,32 +108,39 @@ const Gemini = {
       .map(k => ({ key: k, score: this._comboScore(k, regime) }))
       .sort((a, b) => b.score - a.score);
 
-    // 1+2. re-assign combos to the strongest employees, tune confidence weight
+    // 1+2. re-assign combos + tune confidence weight.
+    // Phase F FIX: a combo must match the employee's SYMBOL. The old code assigned the
+    // i-th best combo GLOBALLY (ranked[i]) → cross-symbol nonsense (Mina/gold got a EUR
+    // combo, Willa/EUR got Crypto). Now each employee only competes among combos used by
+    // employees of the SAME symbol.
     const memo = [];
     let switched = 0;
-    Company.EMPLOYEES.forEach((emp, i) => {
-      // best-available combo for this employee (top combos spread across the team)
-      const pick = ranked[Math.min(i, ranked.length - 1)] || ranked[0];
-      if (!pick) return;
+    Company.EMPLOYEES.forEach((emp) => {
+      // candidate combos for THIS employee = combos owned by same-symbol employees
+      const candidates = [...new Set(Company.EMPLOYEES.filter(e => e.sym === emp.sym).map(e => e.combo))]
+                           .filter(k => Company.COMBOS[k]);
+      if (!candidates.length) return;
+      const best = candidates.map(k => ({ key: k, score: this._comboScore(k, regime) }))
+                             .sort((a, b) => b.score - a.score)[0];
 
-      // Phase D.15: decide the combo with the HOLD + HYSTERESIS guard.
-      const curKey   = state.assign[emp.id] || emp.combo;            // current/default combo
-      const curScore = curKey ? this._comboScore(curKey, regime) : -1e9;
+      // current assignment — but FIX legacy cross-symbol mess: must be a valid same-symbol combo
+      let curKey = state.assign[emp.id] || emp.combo;
+      if (!candidates.includes(curKey)) curKey = emp.combo;     // reset wrong-symbol assignment
+      const curScore = this._comboScore(curKey, regime);
+
+      // HOLD (thin data) → keep current · else HYSTERESIS: switch only if clearly better
       let chosen;
-      if (holdRoster && curKey)                       chosen = curKey;   // thin data → keep as-is
-      else if (curKey && pick.score <= curScore + SWITCH_MARGIN) chosen = curKey;   // not clearly better → keep
-      else { chosen = pick.key; if (chosen !== curKey) switched++; }     // clearly better → switch
+      if (holdRoster)                                  chosen = curKey;
+      else if (best.score <= curScore + SWITCH_MARGIN) chosen = curKey;
+      else { chosen = best.key; if (chosen !== curKey) switched++; }
       state.assign[emp.id] = chosen;
 
-      // confidence weight from the CHOSEN combo: positive score → boost, negative → throttle (auto-throttle)
+      // confidence weight from the CHOSEN combo: positive → boost, negative → throttle
       const chosenScore = this._comboScore(chosen, regime);
       const w = Math.max(0.4, Math.min(1.6, 1.0 + chosenScore / 120));
       state.confWeight[emp.id] = Math.round(w * 100) / 100;
-
-      // 3. re-author the persona system prompt
       state.prompts[emp.id] = this._authorPrompt(emp, chosen, regime, w);
-      memo.push(`${emp.name} → ${Company.COMBOS[chosen].name} ` +
-                `(conf ×${state.confWeight[emp.id]}, ${regime})`);
+      memo.push(`${emp.name} → ${Company.COMBOS[chosen].name} (conf ×${state.confWeight[emp.id]}, ${regime})`);
     });
 
     // 4. firm guards by weekly WR — Phase D.15: only once we have real live data

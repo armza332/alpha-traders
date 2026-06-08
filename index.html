@@ -643,17 +643,17 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=81"></script>
-<script src="js/market.js?v=81"></script>
-<script src="js/agents.js?v=81"></script>
-<script src="js/ui.js?v=81"></script>
-<script src="js/extras.js?v=81"></script>
-<script src="js/ai-bridge.js?v=81"></script>
-<script src="js/gemini.js?v=81"></script>
-<script src="js/portfolio.js?v=81"></script>
-<script src="js/sprite-slicer.js?v=81"></script>
-<script src="js/backtest.js?v=81"></script>
-<script src="js/app.js?v=81"></script>
+<script src="js/i18n.js?v=82"></script>
+<script src="js/market.js?v=82"></script>
+<script src="js/agents.js?v=82"></script>
+<script src="js/ui.js?v=82"></script>
+<script src="js/extras.js?v=82"></script>
+<script src="js/ai-bridge.js?v=82"></script>
+<script src="js/gemini.js?v=82"></script>
+<script src="js/portfolio.js?v=82"></script>
+<script src="js/sprite-slicer.js?v=82"></script>
+<script src="js/backtest.js?v=82"></script>
+<script src="js/app.js?v=82"></script>
 
 <!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
 <div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
@@ -666,20 +666,34 @@
   function openAgentHQ() {
     const ov = document.getElementById('agenthq-overlay');
     const fr = document.getElementById('agenthq-frame');
-    if (!fr.src) fr.src = 'agent-hq.html?v=81';   // load once; data syncs live from parent
+    if (!fr.src) fr.src = 'agent-hq.html?v=82';   // load once; data syncs live from parent
     ov.style.display = 'block';
   }
   function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }
   // collapse/expand the hub side panels (employees ◀ / data ▶)
-  function toggleHub(side) {
+  function _setHub(side, off) {
     const grid = document.getElementById('hub-grid');
     const col  = document.getElementById(side === 'left' ? 'hub-left' : 'hub-right');
     const tab  = document.getElementById(side === 'left' ? 'hub-tab-left' : 'hub-tab-right');
     const cls  = side === 'left' ? 'no-left' : 'no-right';
-    const off  = grid.classList.toggle(cls);
-    col.classList.toggle('collapsed', off);
+    grid.classList.toggle(cls, off);
+    if (col) col.classList.toggle('collapsed', off);
     if (tab) tab.textContent = off ? (side === 'left' ? '▶' : '◀') : (side === 'left' ? '◀' : '▶');
+    try { localStorage.setItem('twr_hub_' + side, off ? '1' : '0'); } catch (e) {}
   }
+  function toggleHub(side) {
+    const grid = document.getElementById('hub-grid');
+    const cls  = side === 'left' ? 'no-left' : 'no-right';
+    _setHub(side, !grid.classList.contains(cls));   // flip current state
+  }
+  // Phase F: LEAN by default — side columns collapsed unless the user expanded them before.
+  function _applyHubState() {
+    ['left', 'right'].forEach(side => {
+      let off; try { const v = localStorage.getItem('twr_hub_' + side); off = (v === null) ? true : v === '1'; } catch (e) { off = true; }
+      _setHub(side, off);
+    });
+  }
+  _applyHubState();
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && document.getElementById('agenthq-overlay').style.display === 'block') closeAgentHQ();
   });
