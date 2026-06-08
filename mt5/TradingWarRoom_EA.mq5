@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.48 · Phase D.14"
+#define EA_VERSION "v1.49 · Phase D.15"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -233,7 +233,7 @@ void RebuildIndicators() {
       atrHandle[i] = iATR(symbols[i], effTF, ATRPeriod);
       adxHandle[i] = iADX(symbols[i], effTF, AdxPeriod);
       lastSignalTime[i] = 0;   // fresh cooldown on the new timeframe
-      lastBarSym[i]     = 0;    // re-arm per-symbol new-bar trigger
+      lastBarSym[i]     = iTime(symbols[i], effTF, 0);  // D.15: seed current bar → no instant fire on preset switch
    }
    PrintFormat("🔧 Indicators rebuilt @ TF %s | Risk %.1f%% | conf≥%.0f | Pullback %.2f",
                EnumToString(effTF), effRisk, effMinConf, effPullbackZone);
@@ -302,7 +302,10 @@ int OnInit() {
       }
 
       lastSignalTime[i] = 0;
-      lastBarSym[i]     = 0;   // Phase D.13: per-symbol new-bar trigger
+      // Phase D.15: seed with the CURRENT bar (not 0) so a re-init — e.g. user flips
+      // the chart timeframe, which re-runs OnInit — does NOT treat the current bar as
+      // "new" and fire a duplicate trade immediately (cooldown is also reset on init).
+      lastBarSym[i]     = iTime(symbols[i], effTF, 0);
    }
 
    PrintFormat("✅ Trading War Room EA initialized [%s MODE]  🏷 %s", ScalpMode ? "⚡ SCALP M1" : "🌊 SWING", EA_VERSION);
@@ -604,6 +607,16 @@ void ExecuteTrade(string sym, int idx, bool isBuy, double atr, double rsi, strin
          if (riskPct > capPct) {
             PrintFormat("🚫 %s SKIP — trade risk %.1f%% > max %.1f%% (lot %.2f, risk $%.2f on eq $%.2f) — เล็กไปสำหรับคู่นี้",
                         sym, riskPct, capPct, lot, riskMoney, eq);
+            return;
+         }
+         // Phase D.15 (Fix A): PROSPECTIVE portfolio guard. The old check only looked
+         // at CURRENT open risk, so a 2nd trade could push total risk past the cap
+         // (e.g. two gold buys → 8.4% > 6%). Now block if adding THIS trade would
+         // exceed MaxPortfolioRiskPct.
+         double portNow = PortfolioRiskPct();
+         if (MaxPortfolioRiskPct > 0 && (portNow + riskPct) > MaxPortfolioRiskPct) {
+            PrintFormat("🚫 %s SKIP — portfolio %.1f%% + ไม้นี้ %.1f%% = %.1f%% > เพดาน %.1f%% (กันเสี่ยงกระจุก)",
+                        sym, portNow, riskPct, portNow + riskPct, MaxPortfolioRiskPct);
             return;
          }
       }

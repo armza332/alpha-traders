@@ -84,6 +84,15 @@ const Gemini = {
     const kb = AgentScores.load();
     const totalTrades = (kb.meta?.liveTrades || 0) + (kb.meta?.backtestTrades || 0);
 
+    // Phase D.15 GUARD: don't churn the roster on thin/simulated data.
+    //  • HOLD until there are ≥ MIN_LIVE real (live) trades — KB is backtest-heavy,
+    //    so reassigning combos off it would be over-fitting to noise.
+    //  • HYSTERESIS: once coaching, only switch an employee's combo if a challenger
+    //    beats the CURRENT one by ≥ SWITCH_MARGIN (prevents flip-flopping each run).
+    const MIN_LIVE = 20, SWITCH_MARGIN = 15;
+    const liveN = kb.meta?.liveTrades || 0;
+    const holdRoster = (liveN < MIN_LIVE);
+
     // pick the dominant regime across the 3 traded symbols
     const regimes = ['XAUUSD','AUDUSD','EURUSD'].map(s => this.regimeNow(s));
     const regime = this._mode(regimes.filter(r => r !== 'unknown')) || 'all';
@@ -101,24 +110,35 @@ const Gemini = {
 
     // 1+2. re-assign combos to the strongest employees, tune confidence weight
     const memo = [];
+    let switched = 0;
     Company.EMPLOYEES.forEach((emp, i) => {
       // best-available combo for this employee (top combos spread across the team)
       const pick = ranked[Math.min(i, ranked.length - 1)] || ranked[0];
       if (!pick) return;
-      state.assign[emp.id] = pick.key;
 
-      // confidence weight: positive combo score → boost, negative → throttle
-      const w = Math.max(0.4, Math.min(1.6, 1.0 + pick.score / 120));
+      // Phase D.15: decide the combo with the HOLD + HYSTERESIS guard.
+      const curKey   = state.assign[emp.id] || emp.combo;            // current/default combo
+      const curScore = curKey ? this._comboScore(curKey, regime) : -1e9;
+      let chosen;
+      if (holdRoster && curKey)                       chosen = curKey;   // thin data → keep as-is
+      else if (curKey && pick.score <= curScore + SWITCH_MARGIN) chosen = curKey;   // not clearly better → keep
+      else { chosen = pick.key; if (chosen !== curKey) switched++; }     // clearly better → switch
+      state.assign[emp.id] = chosen;
+
+      // confidence weight from the CHOSEN combo: positive score → boost, negative → throttle (auto-throttle)
+      const chosenScore = this._comboScore(chosen, regime);
+      const w = Math.max(0.4, Math.min(1.6, 1.0 + chosenScore / 120));
       state.confWeight[emp.id] = Math.round(w * 100) / 100;
 
       // 3. re-author the persona system prompt
-      state.prompts[emp.id] = this._authorPrompt(emp, pick.key, regime, w);
-      memo.push(`${emp.name} → ${Company.COMBOS[pick.key].name} ` +
+      state.prompts[emp.id] = this._authorPrompt(emp, chosen, regime, w);
+      memo.push(`${emp.name} → ${Company.COMBOS[chosen].name} ` +
                 `(conf ×${state.confWeight[emp.id]}, ${regime})`);
     });
 
-    // 4. firm guards by weekly WR  (mirrors the existing _doApply philosophy)
-    if (typeof Settings !== 'undefined' && all.t >= 10) {
+    // 4. firm guards by weekly WR — Phase D.15: only once we have real live data
+    //    (don't tighten/loosen grade & risk off backtest-only WR).
+    if (typeof Settings !== 'undefined' && !holdRoster && all.t >= 10) {
       if (wr < 45)      { Settings.set('minGrade', 'A'); Settings.set('riskPerTrade', 1.0); }
       else if (wr < 55) { Settings.set('minGrade', 'B'); }
       else if (wr >= 65){ Settings.set('minGrade', 'B'); Settings.set('riskPerTrade',
@@ -131,7 +151,12 @@ const Gemini = {
     this.save(state);
     this._lastTrades = totalTrades;
 
-    const summary = `🧠 GEMINI re-coached the floor · regime=${regime} · firm WR=${wr}% · ${memo.length} agents tuned`;
+    this._guardState = holdRoster
+      ? `🔒 HOLD — รอไม้จริง ${liveN}/${MIN_LIVE} (ยังไม่แตะทีม กันมั่วจากข้อมูลจำลอง)`
+      : `✅ ACTIVE — โค้ชจากไม้จริง ${liveN} ไม้ · สลับคอมโบ ${switched} คน (เกณฑ์ชนะ +${SWITCH_MARGIN})`;
+    const summary = holdRoster
+      ? `🧠 GEMINI ${this._guardState} · regime=${regime}`
+      : `🧠 GEMINI re-coached · regime=${regime} · WR=${wr}% · สลับ ${switched} · ${memo.length} agents tuned`;
     if (!silent && typeof UI !== 'undefined') UI.addLog?.('CMD', 'GEMINI', summary);
     if (typeof KeepAlive !== 'undefined') KeepAlive.notify?.('🧠 GEMINI Weekly Review', summary, {});
 
@@ -225,6 +250,7 @@ const Gemini = {
           ${last ? `Last review: regime <b>${last.regime}</b> · firm WR <b>${last.wr}%</b> · ${new Date(last.at).toLocaleString()}`
                  : 'No review yet — click below to run the first one.'}
         </div>
+        ${this._guardState ? `<div style="font-size:7px;padding:4px 6px;margin-bottom:6px;border-radius:5px;border:1px solid ${this._guardState.startsWith('🔒')?'var(--orange)':'var(--green)'};color:${this._guardState.startsWith('🔒')?'var(--orange)':'var(--green)'}">${this._guardState}</div>` : ''}
         <table class="twr-table" style="width:100%;font-size:7px">
           <tr><th>Agent</th><th>Assigned Combo</th><th>Conf</th><th>System Prompt</th></tr>
           ${rows}
