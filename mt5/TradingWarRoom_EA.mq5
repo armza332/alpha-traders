@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.50 · Phase D.16"
+#define EA_VERSION "v1.51 · Phase D.17"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -187,15 +187,15 @@ void ApplyMode() {
    if (gPreset == 1) {            // LOW — เสี่ยงน้อย ไม้น้อย (H1, คัดสุด)
       effTF=PERIOD_H1;  effRSIUnder=RSIOversold;      effRSIOver=RSIOverbought;
       effSLMult=SLAtrMult;        effRR=1.8;  effCooldownMin=60; effMaxPos=1;
-      effRisk=1.0; effMaxPerTrade=3.0; effPullbackZone=0.20; effMinConf=78;
+      effRisk=1.0; effMaxPerTrade=3.0; effPullbackZone=0.20; effMinConf=74;   // D.17: rebalanced for normalized agent confs
    } else if (gPreset == 2) {     // MID — เสี่ยงกลาง ไม้ปานกลาง (M15)
       effTF=PERIOD_M15; effRSIUnder=RSIOversold;      effRSIOver=RSIOverbought;
       effSLMult=SLAtrMult;        effRR=1.6;  effCooldownMin=30; effMaxPos=2;
-      effRisk=1.5; effMaxPerTrade=4.0; effPullbackZone=0.15; effMinConf=72;
+      effRisk=1.5; effMaxPerTrade=4.0; effPullbackZone=0.15; effMinConf=68;   // D.17: rebalanced
    } else if (gPreset == 3) {     // HIGH — เสี่ยงมาก ไม้เยอะ/ถี่ (M5, ยังคัด conf สูง)
       effTF=PERIOD_M5;  effRSIUnder=ScalpRSIOversold; effRSIOver=ScalpRSIOverbought;
       effSLMult=ScalpSLMult;      effRR=1.4;  effCooldownMin=10; effMaxPos=2;
-      effRisk=2.0; effMaxPerTrade=5.0; effPullbackZone=0.12; effMinConf=70;
+      effRisk=2.0; effMaxPerTrade=5.0; effPullbackZone=0.12; effMinConf=66;   // D.17: rebalanced
    } else if (ScalpMode) {        // AUTO + ScalpMode input
       effTF           = ScalpTF;
       effRSIUnder     = ScalpRSIOversold;
@@ -1678,7 +1678,7 @@ AgentOut AgentRSI(string sym, ENUM_TIMEFRAMES tf, int idx) {
    if (rsi >= 70 && bear) score -= 35;     // overbought in downtrend → sell
    if (rsi >= 40 && rsi <= 60 && trending) score += (bull ? 10 : bear ? -10 : 0);
    o.dir  = score >= 25 ? 1 : score <= -25 ? -1 : 0;
-   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.45);
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.7);   // D.17: normalized (was ×0.45 → max ~66, below the conf gate)
    return o;
 }
 
@@ -1791,7 +1791,10 @@ AgentOut AgentSMC(string sym, ENUM_TIMEFRAMES tf) {
    AgentOut ob = AgentOrderBlock(sym, tf);
    score += ob.dir * 15;
    o.dir  = score >= 20 ? 1 : score <= -20 ? -1 : 0;
-   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.4);
+   // Phase D.17: conf NORMALIZED to the same scale as elliott/fvg (~70+ on a clear
+   // signal). Old ×0.4 made SMC top out at ~58 → any combo containing SMC could
+   // never pass effMinConf(70+) → AUD went silent while gold fired daily.
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 0.8);
    return o;
 }
 
@@ -1930,7 +1933,7 @@ AgentOut AgentBollinger(string sym, ENUM_TIMEFRAMES tf) {
    if (squeeze) score *= 0.5;
    if (expanding && last > mid[0]) score += 10; if (expanding && last < mid[0]) score -= 10;
    o.dir  = score >= 15 ? 1 : score <= -15 ? -1 : 0;
-   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.1);
+   o.conf = MathMin(95.0, 50 + MathAbs(score) * 1.4);   // D.17: normalized (band-touch vote was ~66.5, below the conf gate)
    return o;
 }
 // 📈 MACD — momentum crossover (iMACD 12,26,9)
