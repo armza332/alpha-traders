@@ -574,6 +574,8 @@ const Cockpit = {
         <button onclick="Modal.open('journal')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">📓 ประวัติ/KB</button>
         <button onclick="openAgentHQ()" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">🏢 ออฟฟิศ</button>
         <button onclick="Modal.open('backtest')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">🔬 Backtest</button>
+        <button onclick="Modal.open('botstatus')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">🤖 Bot/MT5</button>
+        <button onclick="Modal.open('help')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">❓ ช่วยเหลือ</button>
         <button onclick="Modal.open('settings')" style="font-size:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#9aa;cursor:pointer">⚙ ตั้งค่า</button>
       </div>
 
