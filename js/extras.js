@@ -4354,13 +4354,20 @@ const Company = {
       return `<div id="twrfig-${e.id}" class="twr-fig" data-x="${pos.x}" data-y="${pos.y}"
           style="position:absolute;left:${pos.x}%;top:${pos.y}%;transform:translate(-50%,-100%);z-index:${Math.round(pos.y)+5};width:84px;text-align:center;pointer-events:none;transition:left 2.6s linear, top 2.6s linear">
         <div class="twr-bubble-slot" style="min-height:11px"></div>
-        <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:62px;image-rendering:pixelated;display:block;margin:1px auto 0;filter:drop-shadow(0 3px 4px rgba(0,0,0,.7));transition:transform .25s">
-        <div style="font-size:7px;font-weight:bold;color:${e.face.accColor};text-shadow:0 1px 2px #000">${e.name}</div>
+        <img class="twr-ava" data-sc="${(e.sprite&&e.sprite[0])||0}" data-sr="${(e.sprite&&e.sprite[1])||0}" style="height:62px;image-rendering:pixelated;display:block;margin:1px auto 0;filter:drop-shadow(0 4px 5px rgba(0,0,0,.75));transition:transform .25s">
+        <div style="font-size:7px;font-weight:bold;color:${e.face.accColor};background:rgba(4,7,14,.78);border:1px solid rgba(255,255,255,.08);border-radius:5px;padding:1px 5px;display:inline-block;text-shadow:0 1px 2px #000;backdrop-filter:blur(2px)">${e.name}</div>
       </div>`;
     }).join('');
-    return `<div id="twr-floor-scene" style="position:relative;width:100%;max-width:940px;margin:0 auto 12px;border-radius:8px;overflow:hidden;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,.55)">
-      <img src="assets/room-bg.png?v=55" style="width:100%;display:block;image-rendering:pixelated">
-      <div style="position:absolute;left:12px;top:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 4px #000">🏢 ALPHA TRADERS — Live Floor</div>
+    // Phase F.5: cinematic lighting — neon spill (top-left sign), cool window light,
+    // floor vignette. Pure CSS overlays on the same PNG, zero asset changes.
+    return `<div id="twr-floor-scene" style="position:relative;width:100%;max-width:940px;margin:0 auto 12px;border-radius:10px;overflow:hidden;border:1px solid var(--border);box-shadow:0 8px 26px rgba(0,0,0,.6)">
+      <img src="assets/room-bg.png?v=55" style="width:100%;display:block;image-rendering:pixelated;filter:saturate(1.14) brightness(1.05) contrast(1.06)">
+      <div style="position:absolute;inset:0;pointer-events:none;background:
+        radial-gradient(ellipse 42% 34% at 17% 18%, rgba(45,140,255,.16), transparent 70%),
+        radial-gradient(ellipse 38% 30% at 86% 14%, rgba(120,80,255,.12), transparent 70%),
+        radial-gradient(ellipse 90% 42% at 50% 108%, rgba(0,0,0,.42), transparent 72%);
+        box-shadow:inset 0 0 90px rgba(0,0,0,.45)"></div>
+      <div style="position:absolute;left:12px;top:8px;font-size:11px;color:#9ec5ff;font-weight:bold;text-shadow:0 1px 6px #000;background:rgba(4,7,14,.55);padding:2px 8px;border-radius:6px">🏢 ALPHA TRADERS — Live Floor</div>
       ${figs}
     </div>`;
   },
@@ -4379,14 +4386,24 @@ const Company = {
   // Random wander across the wooden floor (each tick ~half the team moves).
   _roamTick() {
     if (!document.getElementById('twr-floor-scene')) return;
-    this.EMPLOYEES.forEach(e => {
+    const n = this.EMPLOYEES.length;
+    this.EMPLOYEES.forEach((e, i) => {
       if (Math.random() > 0.5) return;
       const fig = document.getElementById('twrfig-' + e.id); if (!fig) return;
-      const nx = 14 + Math.random() * 74;   // 14–88%  (floor width)
-      const ny = 58 + Math.random() * 32;   // 58–90%  (wooden floor only)
+      // Phase F.5: anti-clump — each agent roams around their OWN home slot
+      // (evenly spaced across the floor) instead of fully random points, so the
+      // team spreads out like a real office instead of bunching in one corner.
+      const baseX = 16 + (i / Math.max(1, n - 1)) * 68;          // 16–84% personal lane
+      const nx = Math.max(12, Math.min(88, baseX + (Math.random() * 22 - 11)));
+      const ny = 58 + Math.random() * 32;                          // wooden floor only
       const cx = parseFloat(fig.dataset.x) || 50;
       const img = fig.querySelector('.twr-ava');
-      if (img) img.style.transform = (nx < cx) ? 'scaleX(-1)' : 'scaleX(1)';
+      // Phase F.5 FIX: sprites natively face LEFT — the old flip was inverted,
+      // making everyone moonwalk. Mirror when moving RIGHT instead.
+      if (img && Math.abs(nx - cx) > 1.5) img.style.transform = (nx > cx) ? 'scaleX(-1)' : 'scaleX(1)';
+      // natural pace: each trip gets its own duration (distance-ish feel)
+      const d = (2 + Math.random() * 1.6).toFixed(2);
+      fig.style.transition = `left ${d}s linear, top ${d}s linear`;
       fig.dataset.x = nx.toFixed(1); fig.dataset.y = ny.toFixed(1);
       fig.style.left = nx + '%'; fig.style.top = ny + '%';
       fig.style.zIndex = Math.round(ny) + 5;
