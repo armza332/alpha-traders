@@ -659,6 +659,7 @@ const Modal = {
     });
     const mw = document.getElementById('s-minweight'); if (mw) mw.value = Settings.get('minAgentWeight', 0.5);
     const bb = document.getElementById('s-botbridge'); if (bb) bb.value = Settings.get('botBridgeURL', '');
+    const sc = document.getElementById('s-secret'); if (sc) sc.value = Settings.get('webhookSecret', '');  // Phase G (blank = still using old default)
     const ws = document.getElementById('s-web-ai-signals'); if (ws) ws.checked = Settings.get('webAISignalsToEA', false);
     const rc = document.getElementById('s-recency'); if (rc) rc.checked = Settings.get('kbRecencyDecay', 1.0) < 1.0;
     const aa = document.getElementById('s-autoapply'); if (aa) aa.checked = Settings.get('autoApplyStrategy', false);
@@ -705,6 +706,7 @@ const Modal = {
       Settings.set('botBridgeURL', bb.value.trim());
       if (typeof BotBridge !== 'undefined' && bb.value.trim().length > 20) BotBridge.start();
     }
+    const sc = document.getElementById('s-secret'); if (sc && sc.value.trim()) Settings.set('webhookSecret', sc.value.trim());  // Phase G
     const ws = document.getElementById('s-web-ai-signals');
     if (ws) Settings.set('webAISignalsToEA', ws.checked);
     const rc = document.getElementById('s-recency');
@@ -2086,7 +2088,7 @@ const BotBridge = {
         method: 'POST',
         mode:   'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body:    JSON.stringify({ type: 'cmd', secret: 'twr-secret', cmd })
+        body:    JSON.stringify({ type: 'cmd', secret: Settings.get('webhookSecret', 'twr-secret'), cmd })
       });
       console.log(`🧠 Phase 13: AI signal sent → ${cmd}`);
     } catch (e) { /* silent */ }
@@ -2116,7 +2118,7 @@ const BotBridge = {
         method: 'POST',
         mode:   'no-cors',  // Apps Script needs no-cors for cross-origin POST
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body:    JSON.stringify({ type: 'cmd', secret: 'twr-secret', cmd: cmd })
+        body:    JSON.stringify({ type: 'cmd', secret: Settings.get('webhookSecret', 'twr-secret'), cmd: cmd })
       });
       // no-cors → can't read response; assume queued
       const el = document.getElementById('bot-cmd-status');

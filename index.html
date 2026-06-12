@@ -395,6 +395,11 @@
         <label class="form-label">🔗 Bot Bridge URL <span class="hint">(Apps Script /exec URL)</span></label>
         <input id="s-botbridge" type="text" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" spellcheck="false">
       </div>
+      <div class="form-group">
+        <label class="form-label">🔑 Webhook Secret <span class="hint">(ต้องตรงกับ Script Property TWR_SECRET + EA input WebhookSecret)</span></label>
+        <input id="s-secret" type="password" class="form-input" placeholder="ตั้งรหัสลับของคุณเอง (อย่าใช้ twr-secret)" spellcheck="false" autocomplete="off">
+        <div style="font-size:6px;color:var(--orange);padding:3px 4px 0">⚠️ ความปลอดภัย: ตั้งรหัสยาวๆ สุ่มๆ เป็นของคุณเอง แล้วใส่ให้ตรงกันทั้ง 3 ที่ (ช่องนี้ · Script Property TWR_SECRET · EA WebhookSecret)</div>
+      </div>
       <div style="font-size:6px;color:var(--gray);line-height:1.6;padding:0 4px 8px">
         <b style="color:var(--gold)">📘 วิธีตั้ง:</b><br>
         1. เปิด <a href="https://script.google.com" target="_blank" style="color:var(--teal)">script.google.com</a> → New project<br>
@@ -644,17 +649,17 @@
 </div>
 
 <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-<script src="js/i18n.js?v=86"></script>
-<script src="js/market.js?v=86"></script>
-<script src="js/agents.js?v=86"></script>
-<script src="js/ui.js?v=86"></script>
-<script src="js/extras.js?v=86"></script>
-<script src="js/ai-bridge.js?v=86"></script>
-<script src="js/gemini.js?v=86"></script>
-<script src="js/portfolio.js?v=86"></script>
-<script src="js/sprite-slicer.js?v=86"></script>
-<script src="js/backtest.js?v=86"></script>
-<script src="js/app.js?v=86"></script>
+<script src="js/i18n.js?v=87"></script>
+<script src="js/market.js?v=87"></script>
+<script src="js/agents.js?v=87"></script>
+<script src="js/ui.js?v=87"></script>
+<script src="js/extras.js?v=87"></script>
+<script src="js/ai-bridge.js?v=87"></script>
+<script src="js/gemini.js?v=87"></script>
+<script src="js/portfolio.js?v=87"></script>
+<script src="js/sprite-slicer.js?v=87"></script>
+<script src="js/backtest.js?v=87"></script>
+<script src="js/app.js?v=87"></script>
 
 <!-- ═══════════════════ AGENT HQ — full-screen live pixel office (iframe) ═══════════════════ -->
 <div id="agenthq-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#070a14">
@@ -667,7 +672,7 @@
   function openAgentHQ() {
     const ov = document.getElementById('agenthq-overlay');
     const fr = document.getElementById('agenthq-frame');
-    if (!fr.src) fr.src = 'agent-hq.html?v=86';   // load once; data syncs live from parent
+    if (!fr.src) fr.src = 'agent-hq.html?v=87';   // load once; data syncs live from parent
     ov.style.display = 'block';
   }
   function closeAgentHQ() { document.getElementById('agenthq-overlay').style.display = 'none'; }
