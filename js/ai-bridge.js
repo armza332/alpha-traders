@@ -6,8 +6,7 @@
 //    • ask()      → GET ?action=ai (response is readable cross-origin)
 // ════════════════════════════════════════════════════════════════════
 const AIBridge = {
-  // Phase G: read the shared secret from user Settings (no hardcoded default in source)
-  get SECRET() { return (typeof Settings !== 'undefined') ? Settings.get('webhookSecret', 'twr-secret') : 'twr-secret'; },
+  SECRET: 'twr-secret',
   url() { return (typeof Settings !== 'undefined') ? Settings.get('botBridgeURL', '').trim() : ''; },
 
   async status() {

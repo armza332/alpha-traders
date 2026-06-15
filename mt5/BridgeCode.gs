@@ -21,26 +21,7 @@
  *      https://script.googleusercontent.com
  */
 
-// ── Phase G (security): the shared secret now lives in SCRIPT PROPERTIES, not in
-// this (public) source. Set it in Apps Script → Project Settings → Script Properties:
-//     TWR_SECRET = <your-own-long-random-string>
-// Until you set it, it falls back to the old value so nothing breaks; once set, the
-// old 'twr-secret' STOPS working. Rotate it in 3 places: this property, the web
-// SETTINGS → Webhook Secret, and the EA input WebhookSecret.
-const SECRET_FALLBACK = 'twr-secret';
-function getSecret_() {
-  return PropertiesService.getScriptProperties().getProperty('TWR_SECRET') || SECRET_FALLBACK;
-}
-function authed_(e) {   // GET auth: ?secret=... must match
-  return e && e.parameter && e.parameter.secret === getSecret_();
-}
-// Optional kill-switch for "money" commands. Set Script Property
-//   TWR_ALLOW_TRADE_CMDS = false  → the bridge refuses to enqueue close_all / ai_buy /
-// ai_sell even with a valid secret (max-safety: EA runs fully autonomous, web can't
-// trigger trades/closes). Default = allowed.
-function tradeCmdsAllowed_() {
-  return (PropertiesService.getScriptProperties().getProperty('TWR_ALLOW_TRADE_CMDS') || 'true') !== 'false';
-}
+const SECRET = 'twr-secret';  // Must match EA's WebhookSecret
 
 // Phase 26: paste your Google Sheet ID here to archive every closed trade.
 // Get it from the Sheet URL: docs.google.com/spreadsheets/d/<THIS_IS_THE_ID>/edit
@@ -104,7 +85,7 @@ function newsRisk_(windowMin) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    if (data.secret !== getSecret_()) {
+    if (data.secret !== SECRET) {
       return json({ ok: false, error: 'Invalid secret' });
     }
 
@@ -155,12 +136,6 @@ function doPost(e) {
       const isSafe   = /^[a-z][a-z0-9_.]{1,39}$/i.test(c);
       if (!base.includes(c) && !isToggle && !isAISig && !isCombo && !isPreset && !isSafe) {
         return json({ ok: false, error: 'Unknown cmd: ' + c });
-      }
-      // Phase G: extra gate for MONEY/destructive commands (close positions or open
-      // trades). Disable them entirely server-side via TWR_ALLOW_TRADE_CMDS=false.
-      const isMoneyCmd = (c === 'close_all') || isAISig;
-      if (isMoneyCmd && !tradeCmdsAllowed_()) {
-        return json({ ok: false, error: 'trade commands disabled on this bridge (TWR_ALLOW_TRADE_CMDS=false)' });
       }
       const lastId = parseInt(props.getProperty('LAST_CMD_ID') || '0', 10);
       const newId  = lastId + 1;
@@ -245,8 +220,10 @@ function doGet(e) {
 
   // ── Phase 12.4: EA polls for commands ──
   if (action === 'command') {
-    // Phase G: secret now REQUIRED (was optional → anyone could read the queue)
-    if (!authed_(e)) return json({ ok: false, error: 'Invalid secret' });
+    // Optional secret check (EA passes it)
+    if (e.parameter.secret && e.parameter.secret !== SECRET) {
+      return json({ ok: false, error: 'Invalid secret' });
+    }
     const since = parseInt(e.parameter.since || '0', 10);
     const nr = newsRisk_();   // Phase C.3: attach news on every poll
     const raw = props.getProperty('LAST_CMD');
@@ -283,7 +260,7 @@ function doGet(e) {
 
   // ── Phase 26: AI proxy (provider-aware: Gemini OR Groq) — key server-side ──
   if (action === 'ai') {
-    if (!authed_(e)) return json({ ok: false, error: 'Invalid secret' });
+    if (e.parameter.secret !== SECRET) return json({ ok: false, error: 'Invalid secret' });
     var key = props.getProperty('GEMINI_KEY');
     if (!key) return json({ ok: false, error: 'No AI key set — บันทึก key ใน Settings ก่อน' });
     var provider = props.getProperty('AI_PROVIDER') || 'gemini';
@@ -327,7 +304,6 @@ function doGet(e) {
   }
 
   if (action === 'clear') {
-    if (!authed_(e)) return json({ ok: false, error: 'Invalid secret' });   // Phase G: was UNGATED — anyone could wipe all data
     props.deleteProperty('LATEST_STATUS');
     props.deleteProperty('LATEST_PRICES');
     props.deleteProperty('LAST_CMD');
