@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.52 · Phase D.18"
+#define EA_VERSION "v1.53 · Phase D.19"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -67,6 +67,7 @@ input int     SignalCooldownMin  = 30;            // Wait between signals
 input int     MaxOpenPositions   = 2;             // per symbol
 input double  MinADX             = 18.0;          // 📉 Phase D.13: ตลาดออกข้าง (ADX < นี้) → งดสัญญาณ trend-combo · คอมโบเล่นกรอบ (bollinger/rsi) ยังเทรดได้ · 0 = off
 input int     AdxPeriod          = 14;            // ADX period สำหรับ regime filter
+input double  StrongADX          = 22.0;          // 🏃 Phase D.19: เทรนด์แรง (ADX ≥ นี้) + agent ฝั่งเทรนด์เห็นพ้อง → เข้าตามแรง ข้าม pullback (เลิกรอย่อที่ไม่มา) · 0 = off · RSI gate ยังกันไล่ยอดอยู่
 input double  RsiBuyMax          = 72.0;          // 🚫 Phase D.16: งด BUY เมื่อ RSI ≥ นี้ (overbought = ไม่ไล่ยอด) · ใช้ทุกคู่ · 0 = off
 input double  RsiSellMin         = 28.0;          // 🚫 Phase D.16: งด SELL เมื่อ RSI ≤ นี้ (oversold = ไม่ขายก้น) · ใช้ทุกคู่ · 0 = off
 
@@ -196,7 +197,7 @@ void ApplyMode() {
    } else if (gPreset == 3) {     // HIGH — เสี่ยงมาก ไม้เยอะ/ถี่ (M5, ยังคัด conf สูง)
       effTF=PERIOD_M5;  effRSIUnder=ScalpRSIOversold; effRSIOver=ScalpRSIOverbought;
       effSLMult=ScalpSLMult;      effRR=1.4;  effCooldownMin=10; effMaxPos=2;
-      effRisk=2.0; effMaxPerTrade=5.0; effPullbackZone=0.12; effMinConf=66;   // D.17: rebalanced
+      effRisk=2.0; effMaxPerTrade=5.0; effPullbackZone=0.06; effMinConf=66;   // D.19: HIGH = aggressive entries (block only the top ~6%; RSI gate still guards)
    } else if (ScalpMode) {        // AUTO + ScalpMode input
       effTF           = ScalpTF;
       effRSIUnder     = ScalpRSIOversold;
@@ -2120,17 +2121,17 @@ void EvaluateLocalCombo(string sym, int idx) {
    // (utbot/ichimoku/macd/elliott…). Mean-reversion-led signals (bollinger/rsi/fib)
    // are allowed — they thrive in ranges. This is what stops AUD/EUR trend-combos
    // from buying tops / selling bottoms in chop.
-   if (MinADX > 0) {
-      double adxB[]; ArraySetAsSeries(adxB, true);
-      if (adxHandle[idx] != INVALID_HANDLE && CopyBuffer(adxHandle[idx], 0, 0, 1, adxB) == 1) {
-         double adx = adxB[0];
-         int trendVotes = isBuy ? trendBuy : trendSell;
-         int rangeVotes = isBuy ? rangeBuy : rangeSell;
-         if (adx < MinADX && trendVotes > rangeVotes) {
-            PrintFormat("📉 %s SKIP — RANGE (ADX %.1f < %.1f) งดสัญญาณ trend-combo [%s]", sym, adx, MinADX, detail);
-            return;
-         }
-      }
+   // Phase D.19: regime metrics hoisted — used by the RANGE gate AND the pullback
+   // trend-bypass below (so a confirmed strong trend can enter at the extreme).
+   double adx = -1;
+   { double adxB[]; ArraySetAsSeries(adxB, true);
+     if (adxHandle[idx] != INVALID_HANDLE && CopyBuffer(adxHandle[idx], 0, 0, 1, adxB) == 1) adx = adxB[0]; }
+   int trendVotes = isBuy ? trendBuy : trendSell;
+   int rangeVotes = isBuy ? rangeBuy : rangeSell;
+
+   if (MinADX > 0 && adx >= 0 && adx < MinADX && trendVotes > rangeVotes) {
+      PrintFormat("📉 %s SKIP — RANGE (ADX %.1f < %.1f) งดสัญญาณ trend-combo [%s]", sym, adx, MinADX, detail);
+      return;
    }
 
    // Phase D.16: ANTI-CHASE — universal overbought/oversold gate (ALL symbols/combos/
@@ -2148,7 +2149,12 @@ void EvaluateLocalCombo(string sym, int idx) {
    // Phase C.9: pullback entry — don't chase the extreme. In a downtrend wait for a
    // bounce UP before selling (price in upper part of recent range); in an uptrend
    // wait for a dip before buying. Skips (no cooldown set) so it re-checks next bar.
-   if (UsePullbackEntry) {
+   // Phase D.19: in a CONFIRMED strong trend (ADX ≥ StrongADX) led by trend agents,
+   // buying strength / selling weakness is valid trend-following — don't wait for a
+   // pullback that may never come (this is what froze gold: price pinned at the top of
+   // its range every bar). RSI anti-chase gate above still blocks RSI≥72 / ≤28 extremes.
+   bool strongTrend = (StrongADX > 0 && adx >= StrongADX && trendVotes >= rangeVotes);
+   if (UsePullbackEntry && !strongTrend) {
       MqlRates pr[]; ArraySetAsSeries(pr, true);
       int pb = MathMax(3, PullbackBars);
       if (CopyRates(sym, effTF, 1, pb, pr) >= pb) {
@@ -2158,6 +2164,8 @@ void EvaluateLocalCombo(string sym, int idx) {
          if (isBuy && pos > 1.0 - effPullbackZone) { PrintFormat("⏳ %s BUY รอ pullback — ติดยอด (pos %.2f)", sym, pos); return; }
          if (!isBuy && pos < effPullbackZone)      { PrintFormat("⏳ %s SELL รอเด้ง — ติดก้น (pos %.2f)", sym, pos); return; }
       }
+   } else if (UsePullbackEntry && strongTrend) {
+      PrintFormat("🏃 %s %s เข้าตามเทรนด์แรง — ข้าม pullback (ADX %.1f ≥ %.1f)", sym, isBuy?"BUY":"SELL", adx, StrongADX);
    }
 
    double atrArr[], rsiArr[];
