@@ -307,6 +307,8 @@
     #tweaks .tw-colors{display:flex;gap:8px}
     #tweaks .tw-colors button{width:42px;height:30px;border-radius:7px;border:2px solid transparent;cursor:pointer}
     #tweaks .tw-colors button.on{border-color:#fff}
+    /* phones: the floating Tweaks panel would cover the whole floor — hide it (desktop keeps it) */
+    @media (max-width:560px){ #tweaks{ display:none !important; } }
   </style>
   <script>
     (function () {
