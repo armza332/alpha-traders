@@ -18,15 +18,15 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.53 · Phase D.19"
+#define EA_VERSION "v1.54 · Phase D.20"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
-input string  Symbol1            = "AUDUSDc";    // Primary symbol
-input string  Symbol2            = "EURUSDc";    // Secondary symbol
+input string  Symbol1            = "AUDUSDm";    // Primary symbol
+input string  Symbol2            = "EURUSDm";    // Secondary symbol
 input bool    EnableSymbol2      = true;          // Trade Symbol2 too
 input string  Symbol3            = "XAUUSDm";    // Third symbol (gold)
-input bool    EnableSymbol3      = false;         // Trade Symbol3 too (XAU — ระวัง spread!)
+input bool    EnableSymbol3      = true;         // Trade Symbol3 too (XAU — ระวัง spread!)
 input string  Symbol4            = "BTCUSDm";    // Fourth symbol (crypto — เทรด 24/7)
 input bool    EnableSymbol4      = false;         // Trade Symbol4 too (BTC — ต้องพอร์ตใหญ่พอ! lot ขั้นต่ำ exposure สูง)
 
@@ -62,12 +62,13 @@ input double  MaxLot             = 1.0;           // เพดานล็อต
 input bool    AutoScaleMaxLot    = true;          // 🚀 Phase D.18: เพดานล็อตขยายตามพอร์ตเอง (MaxLot × ทุน/100) — พอร์ตโตไม่ต้องมาปรับ
 
 input group "=== FILTERS ==="
-input bool    OnlyLondonNY       = true;          // Skip Asia session
+input bool    OnlyLondonNY       = false;          // Skip Asia session
 input int     SignalCooldownMin  = 30;            // Wait between signals
 input int     MaxOpenPositions   = 2;             // per symbol
 input double  MinADX             = 18.0;          // 📉 Phase D.13: ตลาดออกข้าง (ADX < นี้) → งดสัญญาณ trend-combo · คอมโบเล่นกรอบ (bollinger/rsi) ยังเทรดได้ · 0 = off
 input int     AdxPeriod          = 14;            // ADX period สำหรับ regime filter
 input double  StrongADX          = 22.0;          // 🏃 Phase D.19: เทรนด์แรง (ADX ≥ นี้) + agent ฝั่งเทรนด์เห็นพ้อง → เข้าตามแรง ข้าม pullback (เลิกรอย่อที่ไม่มา) · 0 = off · RSI gate ยังกันไล่ยอดอยู่
+input bool    DiagSkipLog        = true;          // 🔎 Phase D.20: log เหตุผลที่ "ไม่ออกไม้" ทุกแท่ง (no-combo / conf ต่ำ / maxpos / portfolio / cooldown) — เปิดไว้ตอน debug ว่าทำไมบอทนิ่ง · ปิดได้เมื่อเทรดปกติ
 input double  RsiBuyMax          = 72.0;          // 🚫 Phase D.16: งด BUY เมื่อ RSI ≥ นี้ (overbought = ไม่ไล่ยอด) · ใช้ทุกคู่ · 0 = off
 input double  RsiSellMin         = 28.0;          // 🚫 Phase D.16: งด SELL เมื่อ RSI ≤ นี้ (oversold = ไม่ขายก้น) · ใช้ทุกคู่ · 0 = off
 
@@ -105,7 +106,7 @@ input bool    EnableNotify       = false;         // Push notifications
 input bool    ShowDashboard      = true;          // On-chart status panel
 
 input group "=== WEB BRIDGE (Optional) ==="
-input string  WebhookURL         = "";            // Apps Script URL (paste after deploy)
+input string  WebhookURL         = "https://script.google.com/macros/s/AKfycbw5ojgGBBYa9Z-5SafCB6BWu4oSJKiKVnHZIe1DfaktztXiy3cW2ySXDr17Edmq2IpB/exec";            // Apps Script URL (paste after deploy)
 input string  WebhookSecret      = "twr-secret";  // Match Apps Script secret
 input int     WebPushSec         = 30;            // Push status every N seconds (scalp = 15-30s)
 input string  WatchXAU           = "XAUUSDm";     // XAU symbol for price feed (Phase 12.3)
@@ -2089,9 +2090,18 @@ bool IsRangeAgent(string k) {
 // Commander (web) still controls via runEnabled[] / eaPaused / risk / cooldown.
 void EvaluateLocalCombo(string sym, int idx) {
    if (eaPaused) return;
-   if (CountPositions(sym) >= effMaxPos) return;
-   if (PortfolioRiskPct() >= MaxPortfolioRiskPct) return;
-   if (TimeCurrent() - lastSignalTime[idx] < effCooldownMin * 60) return;
+   if (CountPositions(sym) >= effMaxPos) {
+      if (DiagSkipLog) PrintFormat("🔎 %s ไม่ออกไม้: MAX-POS (%d/%d ไม้เปิดอยู่)", sym, CountPositions(sym), effMaxPos);
+      return;
+   }
+   if (PortfolioRiskPct() >= MaxPortfolioRiskPct) {
+      if (DiagSkipLog) PrintFormat("🔎 %s ไม่ออกไม้: พอร์ตเสี่ยงเต็ม %.1f%% ≥ %.1f%% (มีไม้คู่อื่นถืออยู่)", sym, PortfolioRiskPct(), MaxPortfolioRiskPct);
+      return;
+   }
+   if (TimeCurrent() - lastSignalTime[idx] < effCooldownMin * 60) {
+      if (DiagSkipLog) PrintFormat("🔎 %s ไม่ออกไม้: cooldown เหลือ %ds", sym, (int)(effCooldownMin*60 - (TimeCurrent()-lastSignalTime[idx])));
+      return;
+   }
 
    string keys[]; GetComboKeys(sym, keys);
    int votesBuy = 0, votesSell = 0; double confSum = 0; string detail = "";
@@ -2111,9 +2121,15 @@ void EvaluateLocalCombo(string sym, int idx) {
    int needAgree = (ArraySize(keys) == 1) ? 1 : 2;
    if (votesBuy >= needAgree && votesSell == 0)      { net = 1;  agree = votesBuy; }
    else if (votesSell >= needAgree && votesBuy == 0) { net = -1; agree = votesSell; }
-   else return;                               // need confluence (≥needAgree agree + no opposition)
+   else {                                      // need confluence (≥needAgree agree + no opposition)
+      if (DiagSkipLog) PrintFormat("🔎 %s ไม่ออกไม้: ไม่เกิด combo — buy %d / sell %d [%s] (ต้องการ %d เห็นพ้อง ไม่มีฝั่งค้าน)", sym, votesBuy, votesSell, detail, needAgree);
+      return;
+   }
    double conf = confSum / agree;
-   if (conf < effMinConf) return;   // Phase D.9: quality gate per preset
+   if (conf < effMinConf) {   // Phase D.9: quality gate per preset
+      if (DiagSkipLog) PrintFormat("🔎 %s ไม่ออกไม้: combo %s แต่ conf %.0f < เกณฑ์ %.0f [%s]", sym, net>0?"BUY":"SELL", conf, effMinConf, detail);
+      return;
+   }
 
    bool isBuy = (net > 0);
 
