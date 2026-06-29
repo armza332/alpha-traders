@@ -106,7 +106,7 @@ input bool    EnableNotify       = false;         // Push notifications
 input bool    ShowDashboard      = true;          // On-chart status panel
 
 input group "=== WEB BRIDGE (Optional) ==="
-input string  WebhookURL         = "https://script.google.com/macros/s/AKfycbw5ojgGBBYa9Z-5SafCB6BWu4oSJKiKVnHZIe1DfaktztXiy3cW2ySXDr17Edmq2IpB/exec";            // Apps Script URL (paste after deploy)
+input string  WebhookURL         = "";            // Apps Script URL (paste after deploy)
 input string  WebhookSecret      = "twr-secret";  // Match Apps Script secret
 input int     WebPushSec         = 30;            // Push status every N seconds (scalp = 15-30s)
 input string  WatchXAU           = "XAUUSDm";     // XAU symbol for price feed (Phase 12.3)
