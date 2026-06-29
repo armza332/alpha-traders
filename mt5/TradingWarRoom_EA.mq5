@@ -18,7 +18,7 @@
 
 // Build tag — shown in the Experts log on init + on the dashboard so you can
 // verify at a glance which build MT5 actually loaded. Bump on every EA change.
-#define EA_VERSION "v1.54 · Phase D.20"
+#define EA_VERSION "v1.55 · Phase D.21"
 
 //═══════════════════ INPUTS ═════════════════════════════════════════
 input group "=== SYMBOLS ==="
@@ -69,6 +69,7 @@ input double  MinADX             = 18.0;          // 📉 Phase D.13: ตลา�
 input int     AdxPeriod          = 14;            // ADX period สำหรับ regime filter
 input double  StrongADX          = 22.0;          // 🏃 Phase D.19: เทรนด์แรง (ADX ≥ นี้) + agent ฝั่งเทรนด์เห็นพ้อง → เข้าตามแรง ข้าม pullback (เลิกรอย่อที่ไม่มา) · 0 = off · RSI gate ยังกันไล่ยอดอยู่
 input bool    DiagSkipLog        = true;          // 🔎 Phase D.20: log เหตุผลที่ "ไม่ออกไม้" ทุกแท่ง (no-combo / conf ต่ำ / maxpos / portfolio / cooldown) — เปิดไว้ตอน debug ว่าทำไมบอทนิ่ง · ปิดได้เมื่อเทรดปกติ
+input double  SoloAgentConf      = 72.0;          // 🎯 Phase D.21: ถ้ามี agent โหวตแค่ 1 ตัว (ไม่มีฝั่งค้าน) แต่ conf ≥ นี้ → เข้าได้เลย (แก้ปัญหา "2 agent แทบไม่เคยเห็นพ้อง → บอทนิ่ง") · ต้องสูงกว่าเกณฑ์ combo ปกติ · 0 = off (กลับไปต้อง 2 เห็นพ้อง)
 input double  RsiBuyMax          = 72.0;          // 🚫 Phase D.16: งด BUY เมื่อ RSI ≥ นี้ (overbought = ไม่ไล่ยอด) · ใช้ทุกคู่ · 0 = off
 input double  RsiSellMin         = 28.0;          // 🚫 Phase D.16: งด SELL เมื่อ RSI ≤ นี้ (oversold = ไม่ขายก้น) · ใช้ทุกคู่ · 0 = off
 
@@ -2119,10 +2120,23 @@ void EvaluateLocalCombo(string sym, int idx) {
    // Single-agent combo (e.g. FirmSniper hard-filter) fires on its own confluence;
    // multi-agent combos still require ≥2 agree + no opposition.
    int needAgree = (ArraySize(keys) == 1) ? 1 : 2;
+   // Phase D.21: SOLO path — a lone agent (no opposition) with HIGH conviction
+   // (conf ≥ SoloAgentConf, set above the normal combo gate) may enter on its own.
+   // Fixes the deadlock where 3-agent combos almost never get 2 to co-fire.
+   bool soloBuy  = (SoloAgentConf > 0 && votesBuy == 1 && votesSell == 0 && confSum >= SoloAgentConf);
+   bool soloSell = (SoloAgentConf > 0 && votesSell == 1 && votesBuy == 0 && confSum >= SoloAgentConf);
    if (votesBuy >= needAgree && votesSell == 0)      { net = 1;  agree = votesBuy; }
    else if (votesSell >= needAgree && votesBuy == 0) { net = -1; agree = votesSell; }
+   else if (soloBuy)  { net = 1;  agree = 1; if (DiagSkipLog) PrintFormat("🎯 %s SOLO BUY — agent เดียวมั่นใจสูง conf %.0f ≥ %.0f [%s]", sym, confSum, SoloAgentConf, detail); }
+   else if (soloSell) { net = -1; agree = 1; if (DiagSkipLog) PrintFormat("🎯 %s SOLO SELL — agent เดียวมั่นใจสูง conf %.0f ≥ %.0f [%s]", sym, confSum, SoloAgentConf, detail); }
    else {                                      // need confluence (≥needAgree agree + no opposition)
-      if (DiagSkipLog) PrintFormat("🔎 %s ไม่ออกไม้: ไม่เกิด combo — buy %d / sell %d [%s] (ต้องการ %d เห็นพ้อง ไม่มีฝั่งค้าน)", sym, votesBuy, votesSell, detail, needAgree);
+      if (DiagSkipLog) {
+         double loneConf = (votesBuy + votesSell == 1) ? confSum : 0;   // show how close a solo was
+         if (loneConf > 0)
+            PrintFormat("🔎 %s ไม่ออกไม้: agent เดี่ยว conf %.0f < solo %.0f (buy %d/sell %d) [%s]", sym, loneConf, SoloAgentConf, votesBuy, votesSell, detail);
+         else
+            PrintFormat("🔎 %s ไม่ออกไม้: ไม่เกิด combo — buy %d / sell %d [%s] (ต้องการ %d เห็นพ้อง ไม่มีฝั่งค้าน)", sym, votesBuy, votesSell, detail, needAgree);
+      }
       return;
    }
    double conf = confSum / agree;
